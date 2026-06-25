@@ -1,0 +1,135 @@
+{% extends "core/base.html" %}
+{% block title %}Lavorazioni {{ bagno }} — Cenedese{% endblock %}
+
+{% block content %}
+
+<nav class="text-sm text-gray-400 mb-4">
+  <a href="{% url 'main' %}" class="hover:underline">Home</a>
+  <span class="mx-1">/</span>
+  <a href="{% url 'bagno_detail' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}" class="hover:underline">
+    {{ bagno.CODCLI_id }} / {{ bagno.BAGNO }}
+  </a>
+  <span class="mx-1">/</span>
+  <span>Lavorazioni</span>
+</nav>
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Lavorazioni — Bagno {{ bagno.BAGNO }}</h1>
+  <a href="{% url 'lavorazione_create' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
+     class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition">
+    + Nuova
+  </a>
+</div>
+
+{% if lavs %}
+<div class="space-y-4">
+  {% for lav in lavs %}
+  <div class="bg-white rounded-xl shadow p-5" x-data="{ confirmDelete: false, confirmPrint: false }">
+
+    {# Header row: date, stato badge, collaborator + actions #}
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <span class="text-sm text-gray-400">{{ lav.DATORA|date:"d/m/Y H:i" }}</span>
+      <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-700 text-sm font-medium">
+        {{ lav.get_STATO_display|default:lav.STATO }}
+      </span>
+      <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-sm font-medium">
+        {{ lav.get_TIPO_display }}
+      </span>
+      <span class="text-sm text-gray-500">Turno {{ lav.TURNO }}</span>
+      {% if lav.COLLABO %}
+        <span class="text-sm text-gray-500">— {{ lav.COLLABO.NOME }}</span>
+      {% endif %}
+
+      {% if lav.can_act %}
+      <span class="ml-auto flex items-center gap-3">
+        {% if lav.has_saved_disp %}
+        <a href="{% url 'lavorazione_print' codcli=bagno.CODCLI_id bagno=bagno.BAGNO pk=lav.pk %}"
+           target="_blank" class="text-gray-600 hover:underline text-sm font-medium">Stampa</a>
+        {% else %}
+        <button @click="confirmPrint = true"
+                class="text-gray-600 hover:underline text-sm font-medium">Stampa</button>
+        {% endif %}
+        <a href="{% url 'lavorazione_edit' codcli=bagno.CODCLI_id bagno=bagno.BAGNO pk=lav.pk %}"
+           class="text-blue-600 hover:underline text-sm font-medium">Modifica</a>
+        <button @click="confirmDelete = true"
+                class="text-red-500 hover:underline text-sm font-medium">Elimina</button>
+      </span>
+      {% endif %}
+    </div>
+
+    {% if lav.can_act %}
+    {# Delete confirmation modal #}
+    <div x-show="confirmDelete" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+         @keydown.escape.window="confirmDelete = false">
+      <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" @click.outside="confirmDelete = false">
+        <h2 class="font-semibold text-gray-800 mb-2">Eliminare la lavorazione?</h2>
+        <p class="text-sm text-gray-500 mb-4">
+          {{ lav.DATORA|date:"d/m/Y H:i" }} — {{ lav.get_STATO_display|default:lav.STATO }}.
+          L'operazione non è reversibile.
+        </p>
+        <form method="post"
+              action="{% url 'lavorazione_delete' codcli=bagno.CODCLI_id bagno=bagno.BAGNO pk=lav.pk %}"
+              class="flex gap-3">
+          {% csrf_token %}
+          <button type="submit" class="btn flex-1 bg-red-600 text-white hover:bg-red-700">Elimina</button>
+          <button type="button" @click="confirmDelete = false" class="btn btn-ghost flex-1">Annulla</button>
+        </form>
+      </div>
+    </div>
+
+    {# Print confirmation modal (no saved disposition for this lav's type) #}
+    <div x-show="confirmPrint" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+         @keydown.escape.window="confirmPrint = false">
+      <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" @click.outside="confirmPrint = false">
+        <h2 class="font-semibold text-gray-800 mb-2">Nessuna disposizione salvata</h2>
+        <p class="text-sm text-gray-500 mb-4">
+          Non è stata salvata alcuna disposizione per questo bagno: verranno usati
+          i valori predefiniti. Continuare?
+        </p>
+        <div class="flex gap-3">
+          <a href="{% url 'lavorazione_print' codcli=bagno.CODCLI_id bagno=bagno.BAGNO pk=lav.pk %}"
+             target="_blank" @click="confirmPrint = false"
+             class="btn flex-1 bg-gray-700 text-white hover:bg-gray-800 text-center">Stampa</a>
+          <button type="button" @click="confirmPrint = false" class="btn btn-ghost flex-1">Annulla</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Type-specific fields — only show non-empty values #}
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1 text-sm text-gray-600">
+      {% if lav.CODLAV %}<div><strong>Cod. lavorazione:</strong> {{ lav.CODLAV }}</div>{% endif %}
+      {% if lav.COLAFA %}<div><strong>Cod. Fadis:</strong> {{ lav.COLAFA }}</div>{% endif %}
+      {% if lav.VELDIP %}<div><strong>Velocità:</strong> {{ lav.VELDIP }}</div>{% endif %}
+      {% if lav.PASSAG %}<div><strong>Passaggio:</strong> {{ lav.PASSAG }}</div>{% endif %}
+      {% if lav.PESI   %}<div><strong>Pesi:</strong> {{ lav.PESI }}</div>{% endif %}
+      {% if lav.QUAPRO %}<div><strong>Q. prodotta:</strong> {{ lav.QUAPRO }}</div>{% endif %}
+      {% if lav.SCARTI %}<div><strong>Scarti:</strong> {{ lav.SCARTI }}</div>{% endif %}
+      {% if lav.DIFETT %}<div class="col-span-2"><strong>Difetti:</strong> {{ lav.DIFETT }}</div>{% endif %}
+      {% if lav.NOTDR1 %}<div class="col-span-2"><strong>Nota 1:</strong> {{ lav.NOTDR1 }}</div>{% endif %}
+      {% if lav.NOTDR2 %}<div class="col-span-2"><strong>Nota 2:</strong> {{ lav.NOTDR2 }}</div>{% endif %}
+      {% if lav.NOTDR3 %}<div class="col-span-2"><strong>Nota 3:</strong> {{ lav.NOTDR3 }}</div>{% endif %}
+    </div>
+
+    {# Photo thumbnails #}
+    {% if lav.FOTO1 or lav.FOTO2 or lav.FOTO3 %}
+    <div class="flex gap-3 mt-3">
+      {% if lav.FOTO1 %}<a href="{{ lav.FOTO1.url }}" target="_blank"><img src="{{ lav.FOTO1.url }}" alt="Foto 1" class="h-20 w-20 object-cover rounded border border-gray-200"></a>{% endif %}
+      {% if lav.FOTO2 %}<a href="{{ lav.FOTO2.url }}" target="_blank"><img src="{{ lav.FOTO2.url }}" alt="Foto 2" class="h-20 w-20 object-cover rounded border border-gray-200"></a>{% endif %}
+      {% if lav.FOTO3 %}<a href="{{ lav.FOTO3.url }}" target="_blank"><img src="{{ lav.FOTO3.url }}" alt="Foto 3" class="h-20 w-20 object-cover rounded border border-gray-200"></a>{% endif %}
+    </div>
+    {% endif %}
+
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+  Nessuna lavorazione registrata per questo bagno.
+</div>
+{% endif %}
+
+{% endblock %}

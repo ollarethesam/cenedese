@@ -1,0 +1,75 @@
+{% extends "core/base.html" %}
+{% block title %}Fermi — Cenedese{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Bagni fermi</h1>
+  <a href="{% url 'calendar' %}"
+     class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition">
+    ← Calendario
+  </a>
+</div>
+
+<p class="text-sm text-gray-500 mb-4">
+  Bagni senza data di consegna, o con ultima lavorazione in stato <strong>Sospeso</strong>.
+</p>
+
+{% if fermi %}
+<div class="bg-white rounded-xl shadow">
+  <div class="overflow-x-auto rounded-xl">
+  <table class="w-full min-w-[640px] text-sm">
+    <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+      <tr>
+        <th class="px-4 py-2 text-left">Bagno</th>
+        <th class="px-4 py-2 text-left">Cliente</th>
+        <th class="px-4 py-2 text-left">Articolo</th>
+        <th class="px-4 py-2 text-left">Stato</th>
+        <th class="px-4 py-2 text-left">Data DDT</th>
+        <th class="px-4 py-2"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for entry in fermi %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-3 font-medium whitespace-nowrap">{{ entry.bagno.BAGNO }}</td>
+        <td class="px-4 py-3 text-gray-600">{{ entry.bagno.CODCLI }}</td>
+        <td class="px-4 py-3 text-gray-600">{{ entry.bagno.CODART.DESCRI }}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded text-white text-xs
+            {% if entry.color == 'grigio' %}bg-grigio{% else %}bg-gray-400{% endif %}">
+            {{ entry.status }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
+          {% if entry.bagno.DATDDT %}{{ entry.bagno.DATDDT|date:"d/m/Y" }}{% else %}—{% endif %}
+        </td>
+        <td class="px-4 py-3 text-right whitespace-nowrap">
+          <a href="{% url 'bagno_detail' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}"
+             class="text-blue-600 hover:underline text-xs">Apri</a>
+          {% if not entry.bagno.DATCON and entry.bagno.DATDDT %}
+          <form method="post"
+                action="{% url 'set_datcon' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}"
+                onsubmit="return confirm('Impostare la data di consegna al {{ entry.bagno.DATDDT|date:"d/m/Y" }}?');"
+                class="inline ml-3">
+            {% csrf_token %}
+            <input type="hidden" name="datcon" value="{{ entry.bagno.DATDDT|date:"Y-m-d" }}">
+            <input type="hidden" name="next" value="fermi">
+            <button type="submit" class="text-blue-600 hover:underline text-xs">Aggiorna data consegna</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+{% else %}
+<div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+  Nessun bagno fermo.
+</div>
+{% endif %}
+
+{% endblock %}

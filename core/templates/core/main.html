@@ -1,0 +1,208 @@
+{% extends "core/base.html" %}
+{% block title %}Ricerca Bagno — Cenedese{% endblock %}
+
+{# Load html5-qrcode only on this page #}
+{% block extra_head %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<div x-data="{
+       mode: 'scan',
+       barcode: ''
+     }"
+     x-init="
+       /* Start/stop the camera on tab switch (both functions are idempotent) */
+       $watch('mode', val => {
+         if (val === 'scan') startScanner();
+         if (val === 'search') stopScanner();
+       });
+       if (mode === 'scan') startScanner();
+     ">
+
+  <h1 class="text-2xl font-bold mb-6">Cerca Bagno</h1>
+
+  <!-- ── Tab selector ─────────────────────────────────────────────────── -->
+  <div class="flex gap-2 mb-6">
+    <button @click="mode = 'scan'"
+            :class="mode === 'scan' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'"
+            class="px-4 py-2 rounded font-medium text-sm transition">
+      📷 Scanner barcode
+    </button>
+    <button @click="mode = 'search'"
+            :class="mode === 'search' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border'"
+            class="px-4 py-2 rounded font-medium text-sm transition">
+      🔍 Ricerca manuale
+    </button>
+  </div>
+
+  <!-- ── Error banner ──────────────────────────────────────────────────── -->
+  {% if error %}
+  <div class="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">{{ error }}</div>
+  {% endif %}
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 1 — Camera barcode scanner                                      -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div x-show="mode === 'scan'" x-cloak>
+
+    <!-- html5-qrcode renders the camera feed inside this div -->
+    <div id="qr-reader" class="rounded overflow-hidden border border-gray-200 mb-4" style="width:100%;max-width:500px"></div>
+
+    <!-- Hidden form: populated by JS on successful scan, then auto-submitted -->
+    <form id="scan-form" method="post" action="{% url 'main' %}">
+      {% csrf_token %}
+      <input type="hidden" name="mode" value="scan">
+      <input type="hidden" name="barcode" x-model="barcode" id="barcode-input">
+    </form>
+
+    <p class="text-sm text-gray-500">Punta la fotocamera sul barcode del bagno.</p>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <!-- TAB 2 — Manual search                                               -->
+  <!-- ════════════════════════════════════════════════════════════════════ -->
+  <div x-show="mode === 'search'" x-cloak>
+    {{ clients_data|json_script:"clients-data" }}
+    {{ bagni_data|json_script:"bagni-data" }}
+
+    <form method="post" action="{% url 'main' %}" class="bg-white rounded-xl shadow p-6 space-y-4"
+          @combobox-change="if ($event.detail.name === 'codcli') loadBagni($event.detail.value)">
+      {% csrf_token %}
+      <input type="hidden" name="mode" value="search">
+
+      <!-- Client combobox — search input inside the dropdown, matches CODCLI or RAGSOC -->
+      {% include "core/partials/combobox.html" with name="codcli" label="Cliente" placeholder="— Seleziona cliente —" search_placeholder="Cerca per codice o ragione sociale…" options_json_id="clients-data" initial=selected_client %}
+
+      <!-- Bagno combobox — options loaded when a client is selected -->
+      {% include "core/partials/combobox.html" with name="bagno" label="Bagno" placeholder="— Seleziona bagno —" search_placeholder="Cerca bagno…" options_json_id="bagni-data" start_disabled=selected_client|yesno:"false,true" disabled_placeholder="— Prima seleziona un cliente —" %}
+
+      <button type="submit"
+              class="bg-blue-600 text-white px-6 py-2 rounded font-medium hover:bg-blue-700 transition">
+        Apri bagno
+      </button>
+    </form>
+  </div>
+
+</div><!-- end Alpine component -->
+
+
+<!-- ── JavaScript ──────────────────────────────────────────────────────── -->
+<script>
+  let html5QrCode = null;
+
+  /**
+   * Start the html5-qrcode camera scanner.
+   * On a successful read, put the barcode in Alpine's barcode variable
+   * and submit the hidden form automatically.
+   */
+  function startScanner() {
+    if (html5QrCode) return;   // already running
+
+    html5QrCode = new Html5Qrcode("qr-reader");
+    html5QrCode.start(
+      { facingMode: "environment" },   // use rear camera on mobile
+      { fps: 10, qrbox: { width: 250, height: 100 } },
+      (decodedText) => {
+        // Pass barcode to Alpine and submit
+        document.getElementById("barcode-input").value = decodedText;
+        html5QrCode.stop().then(() => {
+          document.getElementById("scan-form").submit();
+        });
+      },
+      (errorMsg) => { /* ignore scan errors — not every frame contains a code */ }
+    ).catch(err => console.warn("Scanner error:", err));
+  }
+
+  function stopScanner() {
+    if (html5QrCode) {
+      // stop() throws synchronously when the camera never started
+      // (e.g. permission denied), so try/catch instead of .catch() alone
+      try { html5QrCode.stop().catch(() => {}); } catch (e) { /* not running */ }
+      html5QrCode = null;
+    }
+  }
+
+  /**
+   * Searchable combobox (used for Cliente and Bagno — markup in
+   * core/partials/combobox.html). The dropdown panel contains the search
+   * input; the list filters live on the option label (case-insensitive
+   * contains — for clients the label is "CODCLI — RAGSOC", so one query
+   * matches both fields). Nothing is auto-selected while typing: tap a row
+   * to select, or press Enter for the first visible match.
+   */
+  document.addEventListener("alpine:init", () => {
+    Alpine.data("combobox", (cfg) => ({
+      name: cfg.name,
+      options: JSON.parse(document.getElementById(cfg.optionsId).textContent),
+      selected: cfg.initial || "",
+      query: "",
+      open: false,
+      disabled: cfg.disabled,
+      placeholder: cfg.placeholder,
+      disabledPlaceholder: cfg.disabledPlaceholder,
+
+      get selectedLabel() {
+        const opt = this.options.find(o => o.value === this.selected);
+        return opt ? opt.label : "";
+      },
+      get filtered() {
+        const q = this.query.trim().toLowerCase();
+        return q
+          ? this.options.filter(o => o.label.toLowerCase().includes(q))
+          : this.options;
+      },
+      toggle() {
+        this.open = !this.open;
+        if (this.open) {
+          this.query = "";
+          this.$nextTick(() => this.$refs.search.focus());
+        }
+      },
+      select(opt) {
+        this.selected = opt ? opt.value : "";
+        this.open = false;
+        this.$dispatch("combobox-change", { name: this.name, value: this.selected });
+      },
+      selectFirst() {
+        if (this.filtered.length) this.select(this.filtered[0]);
+      },
+      // Other components (loadBagni) push new options via this window event
+      init() {
+        window.addEventListener("set-combobox-options", (e) => {
+          if (e.detail.name !== this.name) return;
+          this.options = e.detail.options;
+          this.disabled = e.detail.disabled;
+          this.selected = "";
+          this.query = "";
+        });
+      },
+    }));
+  });
+
+  /**
+   * Fetch the bagni for a given client (JSON view) and push them into the
+   * Bagno combobox. Called when the Cliente combobox changes.
+   */
+  function loadBagni(codcli) {
+    if (!codcli) {
+      window.dispatchEvent(new CustomEvent("set-combobox-options", {
+        detail: { name: "bagno", options: [], disabled: true },
+      }));
+      return;
+    }
+    fetch(`/client/${codcli}/bagni/`)
+      .then(r => r.json())
+      .then(data => {
+        window.dispatchEvent(new CustomEvent("set-combobox-options", {
+          detail: {
+            name: "bagno",
+            options: data.bagni.map(b => ({ value: b, label: b })),
+            disabled: false,
+          },
+        }));
+      });
+  }
+</script>
+{% endblock %}

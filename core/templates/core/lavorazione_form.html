@@ -1,0 +1,253 @@
+{% extends "core/base.html" %}
+{% block title %}{% if is_edit %}Modifica{% else %}Nuova{% endif %} lavorazione — {{ bagno.BAGNO }}{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav class="text-xs text-gray-400 mb-5 flex items-center gap-1 flex-wrap">
+  <a href="{% url 'main' %}" class="hover:text-blue-600">Home</a>
+  <span>/</span>
+  <a href="{% url 'bagno_detail' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}" class="hover:text-blue-600">
+    {{ bagno.CODCLI_id }} / {{ bagno.BAGNO }}
+  </a>
+  <span>/</span>
+  <span class="text-gray-600 font-medium">{% if is_edit %}Modifica lavorazione{% else %}Nuova lavorazione{% endif %}</span>
+</nav>
+
+<!-- Page title -->
+<div class="mb-5">
+  <h1 class="text-xl font-bold text-gray-900">{% if is_edit %}Modifica lavorazione{% else %}Nuova lavorazione{% endif %}</h1>
+  <p class="text-sm text-gray-500 mt-0.5">
+    Bagno <strong>{{ bagno.BAGNO }}</strong> —
+    {% if tipo == "D" %}
+      <span class="text-blue-600 font-medium">Dipanatura</span>
+    {% else %}
+      <span class="text-purple-600 font-medium">Roccatura</span>
+    {% endif %}
+  </p>
+</div>
+
+<!-- Alpine component: 'stato' drives conditional dipanatura fields.
+     Seeded from the form value so edits and failed POSTs keep the selection. -->
+<div x-data="{ stato: '{{ initial_stato }}', lightbox: '' }">
+<form method="post" enctype="multipart/form-data" class="space-y-4">
+  {% csrf_token %}
+
+  <!-- ── 1. Turno e macchina ──────────────────────────────────────────── -->
+  <div class="form-card">
+    <p class="form-card-title">Turno e macchina</p>
+    <div class="grid grid-cols-2 gap-3">
+
+      <!-- TURNO -->
+      <div class="field-wrap">
+        <label class="form-label">{{ form.TURNO.label }}</label>
+        {{ form.TURNO }}
+        {% if form.TURNO.errors %}
+          <p class="text-red-500 text-xs">{{ form.TURNO.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- STATO — bound to Alpine x-model so dependent fields react -->
+      <div class="field-wrap col-span-2 sm:col-span-1">
+        <label class="form-label">{{ form.STATO.label }}</label>
+        <select name="{{ form.STATO.html_name }}"
+                x-model="stato"
+                class="form-select">
+          {% for val, display in form.STATO.field.choices %}
+            <option value="{{ val }}" {% if form.STATO.value == val %}selected{% endif %}>{{ display }}</option>
+          {% endfor %}
+        </select>
+        {% if form.STATO.errors %}
+          <p class="text-red-500 text-xs">{{ form.STATO.errors.0 }}</p>
+        {% endif %}
+      </div>
+
+      <!-- COLLABORATORE -->
+      {% if form.COLLABO %}
+      <div class="field-wrap col-span-2">
+        <label class="form-label">{{ form.COLLABO.label }}</label>
+        {{ form.COLLABO }}
+        {% if form.COLLABO.errors %}
+          <p class="text-red-500 text-xs">{{ form.COLLABO.errors.0 }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <!-- ── 2. Dipanatura-only fields ──────────────────────────────────────── -->
+  {% if tipo == "D" %}
+  <div class="form-card">
+    <p class="form-card-title">Parametri dipanatura</p>
+    <div class="grid grid-cols-2 gap-3">
+
+      <!-- CODLAV: visible only on macchine 1 or 2 -->
+      <div class="field-wrap col-span-2" x-show="stato === '1' || stato === '2'" x-cloak>
+        <label class="form-label">{{ form.CODLAV.label }}</label>
+        {{ form.CODLAV }}
+      </div>
+
+      <!-- COLAFA: visible only on macchina 3 -->
+      <div class="field-wrap col-span-2" x-show="stato === '3'" x-cloak>
+        <label class="form-label">{{ form.COLAFA.label }}</label>
+        {{ form.COLAFA }}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.VELDIP.label }}</label>
+        {{ form.VELDIP }}
+        {% if form.VELDIP.errors %}<p class="text-red-500 text-xs">{{ form.VELDIP.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.PASSAG.label }}</label>
+        {{ form.PASSAG }}
+        {% if form.PASSAG.errors %}<p class="text-red-500 text-xs">{{ form.PASSAG.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div class="field-wrap col-span-2">
+        <label class="form-label">{{ form.PESI.label }}</label>
+        {{ form.PESI }}
+        {% if form.PESI.errors %}<p class="text-red-500 text-xs">{{ form.PESI.errors.0 }}</p>{% endif %}
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── 3. Roccatura-only fields ───────────────────────────────────────── -->
+  {% if tipo == "R" %}
+  <div class="form-card">
+    <p class="form-card-title">Parametri roccatura</p>
+    <div class="grid grid-cols-2 gap-3">
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.QUAPRO.label }}</label>
+        {{ form.QUAPRO }}
+        {% if form.QUAPRO.errors %}<p class="text-red-500 text-xs">{{ form.QUAPRO.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.SCARTI.label }}</label>
+        {{ form.SCARTI }}
+        {% if form.SCARTI.errors %}<p class="text-red-500 text-xs">{{ form.SCARTI.errors.0 }}</p>{% endif %}
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── 4. Difetti e note ───────────────────────────────────────────────── -->
+  <div class="form-card">
+    <p class="form-card-title">Difetti e note</p>
+    <div class="space-y-3">
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.DIFETT.label }}</label>
+        {{ form.DIFETT }}
+        {% if form.DIFETT.errors %}<p class="text-red-500 text-xs">{{ form.DIFETT.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.NOTDR1.label }}</label>
+        {{ form.NOTDR1 }}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.NOTDR2.label }}</label>
+        {{ form.NOTDR2 }}
+      </div>
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.NOTDR3.label }}</label>
+        {{ form.NOTDR3 }}
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 5. Foto ────────────────────────────────────────────────────────── -->
+  <div class="form-card">
+    <p class="form-card-title">Foto (max 3)</p>
+    <div class="grid grid-cols-3 gap-3">
+
+      <!-- Each tile is its own Alpine scope. `preview` holds the thumbnail src
+           (inherited photo on create, existing file on edit, or a freshly chosen
+           file's object URL). The file input (capture="environment") covers the
+           tile so tapping it opens the camera/picker; the eye/× controls sit above
+           it with @click.stop. On create, keep_* carries an inherited photo forward
+           server-side (reusing the same file, no duplicate). -->
+      {% for slot in photo_slots %}
+      <div class="photo-input"
+           x-data="{ preview: '{{ slot.inherited_url }}', keep: {{ slot.keep|yesno:'true,false' }} }">
+        <template x-if="preview">
+          <img :src="preview" alt="{{ slot.field.label }}"
+               class="h-12 w-12 object-cover rounded pointer-events-none">
+        </template>
+        <template x-if="!preview">
+          <svg class="w-6 h-6 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </template>
+        <span class="text-xs text-gray-400 pointer-events-none">{{ slot.field.label }}</span>
+        {{ slot.field }}
+        {% if not is_edit %}
+        <input type="hidden" name="keep_{{ slot.name }}" :value="keep ? '1' : ''">
+        {% endif %}
+
+        <!-- View full size -->
+        <button type="button" x-show="preview" x-cloak
+                @click.stop="$dispatch('open-lightbox', preview)"
+                title="Visualizza"
+                class="absolute top-1 right-1 z-10 bg-black/50 hover:bg-black/70 text-white rounded-full p-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+        {% if not is_edit %}
+        <!-- Remove inherited / chosen photo -->
+        <button type="button" x-show="preview" x-cloak
+                @click.stop="preview=''; keep=false; $refs.file.value=''"
+                title="Rimuovi"
+                class="absolute top-1 left-1 z-10 bg-black/50 hover:bg-red-600 text-white rounded-full p-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+        {% endif %}
+
+        {% if slot.field.errors %}<p class="text-red-500 text-xs">{{ slot.field.errors.0 }}</p>{% endif %}
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+
+  <!-- ── Submit bar — sticky on mobile ─────────────────────────────────── -->
+  <div class="sticky bottom-0 bg-white border-t border-gray-200 -mx-4 px-4 py-3 flex gap-3 sm:static sm:border-none sm:bg-transparent sm:p-0">
+    <button type="submit" class="btn btn-success flex-1 sm:flex-none">
+      Salva lavorazione
+    </button>
+    <a href="{% url 'bagno_detail' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
+       class="btn btn-ghost flex-1 sm:flex-none text-center">
+      Annulla
+    </a>
+  </div>
+
+</form>
+
+<!-- Lightbox: full-size photo viewer for inherited/chosen photos -->
+<div x-show="lightbox" x-cloak
+     @open-lightbox.window="lightbox = $event.detail"
+     @click="lightbox=''" @keydown.escape.window="lightbox=''"
+     class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+  <img :src="lightbox" alt="Foto" class="max-h-full max-w-full rounded shadow-lg">
+</div>
+</div>
+
+{% endblock %}

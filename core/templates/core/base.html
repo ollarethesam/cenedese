@@ -1,0 +1,124 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Cenedese{% endblock %}</title>
+
+  <!-- Tailwind CSS via Play CDN (demo only — use compiled CSS in production) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Extend Tailwind with the 8 calendar colour names from the spec -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            verde:     "#22c55e",
+            azzurro:   "#3b82f6",
+            arancione: "#f97316",
+            giallo:    "#eab308",
+            rosa:      "#ec4899",
+            viola:     "#a855f7",
+            grigio:    "#6b7280",
+            rosso:     "#ef4444",
+            fermo:     "#d1d5db",
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Alpine.js — lightweight reactivity for conditional form fields -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+  <!-- Widget base styles (form-input, form-select, x-cloak, etc.) -->
+  <link rel="stylesheet" href="{% static 'core/style.css' %}">
+
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+
+  <!-- ── Navigation bar ─────────────────────────────────────────────────── -->
+  {% if user.is_authenticated %}
+  <nav class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50"
+       x-data="{ open: false }">
+    <div class="px-4 py-3 flex items-center justify-between max-w-4xl mx-auto">
+
+      <!-- Logo + desktop links -->
+      <div class="flex items-center gap-6">
+        <a href="{% url 'main' %}" class="font-bold text-base text-blue-700 tracking-wide">
+          Cenedese
+        </a>
+        <!-- Desktop nav links (hidden on mobile) -->
+        <div class="hidden sm:flex items-center gap-5 text-sm">
+          <a href="{% url 'calendar' %}" class="text-gray-600 hover:text-blue-600 font-medium">Calendario</a>
+          <a href="{% url 'fermi' %}"    class="text-gray-600 hover:text-blue-600 font-medium">Fermi</a>
+        </div>
+      </div>
+
+      <!-- Right side: operator badge + mobile menu toggle -->
+      <div class="flex items-center gap-3">
+        {% if user.profile.tipo == "D" %}
+          <span class="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-semibold">DIP</span>
+        {% else %}
+          <span class="px-2 py-0.5 rounded-full text-xs bg-purple-100 text-purple-700 font-semibold">ROC</span>
+        {% endif %}
+
+        <!-- Desktop: username + logout -->
+        <span class="hidden sm:inline text-sm text-gray-500">{{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}" class="hidden sm:inline">
+          {% csrf_token %}
+          <button type="submit" class="text-sm text-red-500 hover:underline">Esci</button>
+        </form>
+
+        <!-- Mobile: hamburger button -->
+        <button @click="open = !open"
+                class="sm:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition">
+          <svg x-show="!open" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+          <svg x-show="open" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile dropdown menu -->
+    <div x-show="open" x-cloak
+         class="sm:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-3 text-sm">
+      <a href="{% url 'main' %}"     class="block text-gray-700 font-medium py-1">🏠 Home</a>
+      <a href="{% url 'calendar' %}" class="block text-gray-700 font-medium py-1">📅 Calendario</a>
+      <a href="{% url 'fermi' %}"    class="block text-gray-700 font-medium py-1">⏸ Fermi</a>
+      <div class="border-t border-gray-100 pt-2 flex items-center justify-between">
+        <span class="text-gray-500">{{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}">
+          {% csrf_token %}
+          <button type="submit" class="text-red-500 font-medium">Esci</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+
+  <!-- ── Flash messages ─────────────────────────────────────────────────── -->
+  {% if messages %}
+  <div class="max-w-4xl mx-auto mt-3 px-4">
+    {% for msg in messages %}
+    <div class="p-3 rounded-lg mb-2 text-sm
+      {% if msg.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}">
+      {{ msg }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Page content ───────────────────────────────────────────────────── -->
+  <main class="max-w-4xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

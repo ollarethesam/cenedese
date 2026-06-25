@@ -1,0 +1,151 @@
+{% extends "core/base.html" %}
+{% block title %}Bagno {{ bagno }} — Cenedese{% endblock %}
+
+{% block content %}
+
+{# ── Breadcrumb ──────────────────────────────────────────────────────── #}
+<nav class="text-sm text-gray-400 mb-4">
+  <a href="{% url 'main' %}" class="hover:underline">Home</a>
+  <span class="mx-1">/</span>
+  <span class="text-gray-700">{{ bagno.CODCLI_id }} / {{ bagno.BAGNO }}</span>
+</nav>
+
+{# ── Status badge ────────────────────────────────────────────────────── #}
+<div class="flex items-center gap-3 mb-6">
+  <h1 class="text-2xl font-bold">Bagno {{ bagno.BAGNO }}</h1>
+  <span class="px-3 py-1 rounded-full text-white text-sm font-medium
+    {% if status == 'SPEDITO' %}bg-verde
+    {% elif status == 'FERMO' %}bg-gray-400
+    {% elif status == 'MAGAZZINO' %}bg-rosso
+    {% else %}bg-gray-600{% endif %}">
+    {{ status_label|default:status }}
+  </span>
+</div>
+
+{# ── Main info card ──────────────────────────────────────────────────── #}
+<div class="bg-white rounded-xl shadow p-6 mb-6 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+
+  {# --- From BAGNI --- #}
+  {% include "core/partials/detail_row.html" with label="Cliente"     value=bagno.CODCLI %}
+  {% include "core/partials/detail_row.html" with label="Interno"     value=bagno.INTERN %}
+  {% include "core/partials/detail_row.html" with label="Data DDT"    value=bagno.DATDDT %}
+  {% include "core/partials/detail_row.html" with label="Data consegna" value=bagno.DATCON %}
+
+  {# --- From ARTICO via CODART --- #}
+  {% include "core/partials/detail_row.html" with label="Articolo"    value=artico.CODART %}
+  {% include "core/partials/detail_row.html" with label="Descrizione" value=artico.DESCRI %}
+  {% include "core/partials/detail_row.html" with label="Composizione 1" value=artico.COMPO1 %}
+  {% include "core/partials/detail_row.html" with label="Composizione 2" value=artico.COMPO2 %}
+  {% include "core/partials/detail_row.html" with label="Colore"      value=bagno.COLORE %}
+  {% include "core/partials/detail_row.html" with label="Colore 2"    value=bagno.COLOR1 %}
+  {% include "core/partials/detail_row.html" with label="Titolo"      value=artico.TITOLO %}
+  {% include "core/partials/detail_row.html" with label="Note"        value=bagno.NOTE %}
+  {% include "core/partials/detail_row.html" with label="Note 2"      value=bagno.NOTE1 %}
+
+  {# --- Quantities (0 is meaningful, so don't use detail_row which hides falsy values) --- #}
+  {% if bagno.QUAENT is not None %}
+  <div>
+    <span class="text-gray-500 font-medium">Quantità in entrata:</span>
+    <span class="ml-1">{{ bagno.QUAENT }}</span>
+  </div>
+  {% endif %}
+  {% if bagno.QUAUSC is not None %}
+  <div>
+    <span class="text-gray-500 font-medium">Quantità in uscita:</span>
+    <span class="ml-1">{{ bagno.QUAUSC }}</span>
+  </div>
+  {% endif %}
+  {% if bagno.rimanenza is not None %}
+  <div>
+    <span class="text-gray-500 font-medium">Rimanenza:</span>
+    <span class="ml-1 font-semibold">{{ bagno.rimanenza }}</span>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Processing flags ────────────────────────────────────────────────── #}
+{% if flags_label %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6 text-sm">
+  <span class="font-semibold text-yellow-800">Lavorazioni richieste: </span>
+  <span class="text-yellow-900">{{ flags_label }}</span>
+</div>
+{% endif %}
+
+{# ── Action buttons ──────────────────────────────────────────────────── #}
+{# FERMO gate: a fermo batch needs a delivery date before disposizione/lavorazione #}
+<div class="flex flex-wrap gap-3 mb-6" x-data="{ showDatcon: false, nextView: '' }">
+
+  {% if is_fermo %}
+  <button @click="nextView = 'disposizione'; showDatcon = true"
+          class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition text-sm">
+    Disposizione ({{ profile.tipo }})
+  </button>
+  {% else %}
+  <a href="{% url 'disposizione' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
+     class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition text-sm">
+    Disposizione ({{ profile.tipo }})
+  </a>
+  {% endif %}
+
+  <a href="{% url 'lavorazione_list' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
+     class="bg-green-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-green-700 transition text-sm">
+    Lavorazioni
+  </a>
+
+  {% if is_fermo %}
+  <button @click="nextView = 'lavorazione_create'; showDatcon = true"
+          class="bg-purple-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-purple-700 transition text-sm">
+    + Nuova lavorazione
+  </button>
+  {% else %}
+  <a href="{% url 'lavorazione_create' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
+     class="bg-purple-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-purple-700 transition text-sm">
+    + Nuova lavorazione
+  </a>
+  {% endif %}
+
+  {% if is_fermo %}
+  {# ── Delivery date modal ─────────────────────────────────────────────── #}
+  <div x-show="showDatcon" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+       @keydown.escape.window="showDatcon = false">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm" @click.outside="showDatcon = false">
+      <h2 class="font-semibold text-gray-800 mb-2">Bagno fermo</h2>
+      <p class="text-sm text-gray-500 mb-4">
+        Questo bagno è fermo — inserisci la data di consegna per continuare.
+      </p>
+      <form method="post" action="{% url 'set_datcon' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" :value="nextView">
+        <input type="date" name="datcon" required class="form-input mb-4">
+        <div class="flex gap-3">
+          <button type="submit" class="btn btn-primary flex-1">Conferma</button>
+          <button type="button" @click="showDatcon = false" class="btn btn-ghost flex-1">Annulla</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{# ── Recent lavorazioni preview ──────────────────────────────────────── #}
+{% with lavs=bagno.lavorazioni.all|slice:":3" %}
+{% if lavs %}
+<div class="bg-white rounded-xl shadow p-5">
+  <h2 class="font-semibold mb-3 text-gray-700">Ultime lavorazioni</h2>
+  <ul class="text-sm space-y-1">
+    {% for lav in lavs %}
+    <li class="flex gap-3 border-b border-gray-100 pb-1">
+      <span class="text-gray-400 w-36">{{ lav.DATORA|date:"d/m/Y H:i" }}</span>
+      <span class="font-medium">{{ lav.STATO }}</span>
+      {% if lav.COLLABO %}<span class="text-gray-500">— {{ lav.COLLABO.NOME }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endwith %}
+
+{% endblock %}

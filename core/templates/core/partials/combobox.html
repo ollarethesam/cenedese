@@ -1,0 +1,68 @@
+{% comment %}
+Searchable combobox (Alpine component defined in main.html).
+Params: name             — hidden input name ("codcli" / "bagno")
+        label            — field label
+        placeholder      — closed-state text when nothing is selected
+        search_placeholder — placeholder of the search input
+        options_json_id  — id of the json_script holding [{value, label}, …]
+        initial          — pre-selected value (optional)
+        start_disabled   — "true"/"false" (optional, default "false")
+        disabled_placeholder — closed-state text while disabled (optional)
+{% endcomment %}
+<div>
+  <label class="block text-sm font-medium mb-1">{{ label }}</label>
+  <div x-data="combobox({
+         name: '{{ name }}',
+         optionsId: '{{ options_json_id }}',
+         initial: '{{ initial|default:'' }}',
+         disabled: {{ start_disabled|default:'false' }},
+         placeholder: '{{ placeholder }}',
+         disabledPlaceholder: '{{ disabled_placeholder|default:placeholder }}'
+       })"
+       @click.outside="open = false"
+       @keydown.escape.prevent="open = false"
+       class="relative">
+
+    <input type="hidden" name="{{ name }}" :value="selected">
+
+    <!-- Closed state: button showing the selection (or placeholder) -->
+    <button type="button" @click="toggle()" :disabled="disabled"
+            class="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white text-left
+                   flex items-center justify-between gap-2
+                   disabled:bg-gray-100 disabled:text-gray-400"
+            :class="selectedLabel ? 'text-gray-800' : 'text-gray-500'">
+      <span x-text="selectedLabel || (disabled ? disabledPlaceholder : placeholder)"></span>
+      <span class="text-gray-400 text-xs">▾</span>
+    </button>
+
+    <!-- Open panel: search input + live-filtered list -->
+    <div x-show="open" x-cloak
+         class="absolute z-20 mt-1 w-full bg-white border border-gray-300 rounded shadow-lg">
+      <div class="p-2 border-b border-gray-200">
+        <input type="text" x-ref="search" x-model="query"
+               @keydown.enter.prevent="selectFirst()"
+               placeholder="{{ search_placeholder }}"
+               class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+      </div>
+      <ul class="max-h-60 overflow-y-auto py-1 text-sm">
+        <li>
+          <button type="button" @click="select(null)"
+                  class="w-full text-left px-3 py-2 text-gray-500 hover:bg-gray-50">
+            {{ placeholder }}
+          </button>
+        </li>
+        <template x-for="opt in filtered" :key="opt.value">
+          <li>
+            <button type="button" @click="select(opt)" x-text="opt.label"
+                    class="w-full text-left px-3 py-2 hover:bg-blue-50"
+                    :class="opt.value === selected ? 'bg-blue-50 text-blue-700 font-medium' : ''">
+            </button>
+          </li>
+        </template>
+        <li x-show="filtered.length === 0" class="px-3 py-2 text-gray-400">
+          Nessun risultato
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>

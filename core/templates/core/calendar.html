@@ -1,0 +1,77 @@
+{% extends "core/base.html" %}
+{% block title %}Calendario — Cenedese{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Calendario consegne</h1>
+  <a href="{% url 'fermi' %}"
+     class="bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-700 transition">
+    Fermi
+  </a>
+</div>
+
+{# ── Week navigation ──────────────────────────────────────────────────── #}
+<div class="flex items-center gap-4 mb-6">
+  <a href="?week={{ prev_week }}"
+     class="bg-white border border-gray-300 text-gray-600 px-4 py-1.5 rounded hover:bg-gray-50 text-sm">
+    ← Settimana precedente
+  </a>
+  <span class="text-sm font-medium text-gray-700">
+    {{ week_start|date:"d/m/Y" }} — {{ week_end|date:"d/m/Y" }}
+  </span>
+  <a href="?week={{ next_week }}"
+     class="bg-white border border-gray-300 text-gray-600 px-4 py-1.5 rounded hover:bg-gray-50 text-sm">
+    Settimana successiva →
+  </a>
+</div>
+
+{# ── Colour legend ────────────────────────────────────────────────────── #}
+<div class="flex flex-wrap gap-2 mb-6 text-xs">
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-verde inline-block"></span>Spedito</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-azzurro inline-block"></span>In dipanatura</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-arancione inline-block"></span>Dip. da stribbiare</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-giallo inline-block"></span>In roccatura</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rosa inline-block"></span>Camera</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-viola inline-block"></span>Riroccare</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-grigio inline-block"></span>Sospeso/Magazzino</span>
+  <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rosso inline-block"></span>In magazzino (arr.)</span>
+</div>
+
+{# ── Calendar grid ────────────────────────────────────────────────────── #}
+<div class="grid grid-cols-1 sm:grid-cols-7 gap-3">
+  {% for day in days %}
+  <div class="bg-white rounded-xl shadow p-3 min-h-32">
+
+    {# Day header #}
+    <div class="text-xs font-semibold text-gray-500 mb-2 border-b pb-1">
+      {{ day.date|date:"D d/m" }}
+    </div>
+
+    {# Bagno cells for this day #}
+    {% for entry in day.bagni %}
+    <a href="{% url 'bagno_detail' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}"
+       class="block mb-1.5 px-2 py-1 rounded text-white text-xs font-medium hover:opacity-80 transition
+         {# Tailwind colour classes map to the custom colours defined in base.html #}
+         {% if entry.color == 'verde'     %}bg-verde
+         {% elif entry.color == 'azzurro' %}bg-azzurro
+         {% elif entry.color == 'arancione' %}bg-arancione
+         {% elif entry.color == 'giallo'  %}bg-giallo text-gray-900
+         {% elif entry.color == 'rosa'    %}bg-rosa
+         {% elif entry.color == 'viola'   %}bg-viola
+         {% elif entry.color == 'grigio'  %}bg-grigio
+         {% elif entry.color == 'rosso'   %}bg-rosso
+         {% else %}bg-gray-300 text-gray-700
+         {% endif %}">
+      {{ entry.bagno.BAGNO }}
+      <span class="opacity-75">{{ entry.bagno.CODCLI_id }}</span>
+    </a>
+    {% empty %}
+    <p class="text-xs text-gray-300 italic">–</p>
+    {% endfor %}
+
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

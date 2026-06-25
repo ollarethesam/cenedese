@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+{% block title %}Login — Cenedese{% endblock %}
+
+{% block content %}
+<div class="max-w-sm mx-auto mt-16">
+  <div class="bg-white rounded-xl shadow p-8">
+    <h1 class="text-2xl font-bold mb-6 text-center text-gray-700">Cenedese — Accesso</h1>
+
+    <form method="post">
+      {% csrf_token %}
+
+      {% if form.errors %}
+      <div class="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+        Credenziali non valide. Riprova.
+      </div>
+      {% endif %}
+
+      <div class="mb-4">
+        <label class="block text-sm font-medium mb-1">Utente</label>
+        <input type="text" name="username" autofocus
+               class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+      </div>
+
+      <div class="mb-6">
+        <label class="block text-sm font-medium mb-1">Password</label>
+        <input type="password" name="password"
+               class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+      </div>
+
+      <button type="submit"
+              class="w-full bg-blue-600 text-white py-2 rounded font-medium hover:bg-blue-700 transition">
+        Accedi
+      </button>
+    </form>
+
+    <!-- Demo credentials reminder -->
+    <div class="mt-6 text-xs text-gray-400 text-center">
+      Demo: <strong>operatore_d</strong> / <strong>operatore_r</strong> — password: <strong>pass123</strong>
+    </div>
+  </div>
+</div>
+{% endblock %}

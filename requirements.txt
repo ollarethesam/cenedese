@@ -1,0 +1,8 @@
+django>=4.2
+psycopg2-binary
+pillow
+python-dotenv
+reportlab
+gunicorn
+whitenoise
+dj-database-url

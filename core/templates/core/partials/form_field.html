@@ -1,0 +1,8 @@
+{# Partial: one label + widget + error row, used across all forms #}
+<div class="field-wrap">
+  <label class="form-label">{{ field.label }}</label>
+  {{ field }}
+  {% if field.errors %}
+    <p class="text-red-500 text-xs">{{ field.errors.0 }}</p>
+  {% endif %}
+</div>
