@@ -162,6 +162,8 @@ class LavorazioneForm(forms.ModelForm):
             "VELDIP": _number(),
             "PASSAG": _text("Passaggio"),
             "PESI":   _text("es. 500g"),
+            "PESFR1": _text("es. 500g"),
+            "PESFR2": _text("es. 500g"),
             "QUAPRO": _number({"step": "0.01"}),
             "SCARTI": _number(),
             "DIFETT": _text("Descrivi i difetti"),
@@ -190,7 +192,7 @@ class LavorazioneForm(forms.ModelForm):
 
         # --- type-specific fields ---
         if tipo == "D":
-            type_fields = ["CODLAV", "COLAFA", "VELDIP", "PASSAG", "PESI"]
+            type_fields = ["CODLAV", "COLAFA", "VELDIP", "PASSAG", "PESI", "PESFR1", "PESFR2"]
         else:
             type_fields = ["QUAPRO", "SCARTI"]
 

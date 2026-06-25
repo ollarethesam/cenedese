@@ -331,6 +331,8 @@ class Lavorazione(models.Model):
     VELDIP  = models.IntegerField(null=True, blank=True, verbose_name="Velocità")
     PASSAG  = models.CharField(max_length=40, blank=True, verbose_name="Passaggio")
     PESI    = models.CharField(max_length=40, blank=True, verbose_name="Pesi")
+    PESFR1  = models.CharField(max_length=40, blank=True, verbose_name="Pesi fronte 1")   # only STATO 4/5
+    PESFR2  = models.CharField(max_length=40, blank=True, verbose_name="Pesi fronte 2")   # only STATO 4/5
 
     # --- roccatura fields ---
     QUAPRO  = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Quantità prodotta")

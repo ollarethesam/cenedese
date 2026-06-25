@@ -106,10 +106,24 @@
         {% if form.PASSAG.errors %}<p class="text-red-500 text-xs">{{ form.PASSAG.errors.0 }}</p>{% endif %}
       </div>
 
-      <div class="field-wrap col-span-2">
+      <!-- PESI: hidden on macchine 4/5 (replaced by the two front weights) -->
+      <div class="field-wrap col-span-2" x-show="stato !== '4' && stato !== '5'" x-cloak>
         <label class="form-label">{{ form.PESI.label }}</label>
         {{ form.PESI }}
         {% if form.PESI.errors %}<p class="text-red-500 text-xs">{{ form.PESI.errors.0 }}</p>{% endif %}
+      </div>
+
+      <!-- PESFR1 / PESFR2: visible only on macchine 4 or 5 -->
+      <div class="field-wrap" x-show="stato === '4' || stato === '5'" x-cloak>
+        <label class="form-label">{{ form.PESFR1.label }}</label>
+        {{ form.PESFR1 }}
+        {% if form.PESFR1.errors %}<p class="text-red-500 text-xs">{{ form.PESFR1.errors.0 }}</p>{% endif %}
+      </div>
+
+      <div class="field-wrap" x-show="stato === '4' || stato === '5'" x-cloak>
+        <label class="form-label">{{ form.PESFR2.label }}</label>
+        {{ form.PESFR2 }}
+        {% if form.PESFR2.errors %}<p class="text-red-500 text-xs">{{ form.PESFR2.errors.0 }}</p>{% endif %}
       </div>
 
     </div>

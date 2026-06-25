@@ -182,13 +182,19 @@ def _dipanatura(bagno, lav, dv):
         ("Stribbia",          dv.get("STRIBB")),
     ]))
 
+    # Macchine 4/5 record two front weights instead of the single "Pesi" value
+    if lav.STATO in ("4", "5"):
+        pesi_rows = [("Pesi fronte 1", lav.PESFR1), ("Pesi fronte 2", lav.PESFR2)]
+    else:
+        pesi_rows = [("Pesi", lav.PESI)]
+
     elements.append(Paragraph("OPERATORE & AVANZAMENTO", _SECTION))
     elements.append(_field_table([
         ("Codice",          lav.CODLAV),
         ("Cod. Fadis",      lav.COLAFA),
         ("Velocità",        lav.VELDIP),
         ("Passaggio",       lav.PASSAG),
-        ("Pesi",            lav.PESI),
+        *pesi_rows,
         ("Collaboratrice",  lav.COLLABO.NOME if lav.COLLABO else ""),
         ("Macchina/Stato",  lav.get_STATO_display()),
         ("Turno",           lav.get_TURNO_display()),
