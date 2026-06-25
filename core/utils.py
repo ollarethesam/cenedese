@@ -78,6 +78,25 @@ def get_bagno_status(bagno: Bagno) -> str:
     return "FERMO"
 
 
+def is_fermo_visible_to_tipo(bagno: Bagno, tipo) -> bool:
+    """
+    Whether a stuck batch should be shown to an operator of the given type
+    ('D', 'R', or None) on the Fermi page, based on the stribbiatura flags.
+
+    A flag counts as set if True on the Bagno OR its Artico:
+      STRROC only → Roccatura only; STRDIP only → Dipanatura only;
+      both or neither → visible to both. tipo=None → always visible.
+    """
+    if tipo not in ("D", "R"):
+        return True
+    artico = bagno.CODART
+    strroc = bagno.STRROC or (artico.STRROC if artico else False)
+    strdip = bagno.STRDIP or (artico.STRDIP if artico else False)
+    if tipo == "R":
+        return strroc or not strdip
+    return strdip or not strroc  # tipo == "D"
+
+
 def get_bagno_color_class(bagno: Bagno) -> str:
     """
     Return the CSS class name for the calendar cell of this bagno.

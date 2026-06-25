@@ -28,6 +28,7 @@ from .forms import DisposizioneForm, LavorazioneForm
 from .utils import (
     get_bagno_status,
     get_bagno_color_class,
+    is_fermo_visible_to_tipo,
     get_active_flags,
     get_disposition_defaults,
     apply_disposizione_to_record,
@@ -677,6 +678,10 @@ def fermi_view(request):
     # Shipped = any outgoing quantity; everything else is a candidate
     not_shipped = Q(QUAUSC__isnull=True) | Q(QUAUSC__lte=0)
 
+    # Operator type drives visibility via the stribbiatura flags (None = see all)
+    profile = _get_profile_or_none(request)
+    tipo = profile.tipo if profile else None
+
     # All batches without a delivery date
     no_datcon = (
         Bagno.objects
@@ -688,6 +693,7 @@ def fermi_view(request):
     all_fermi = [
         {"bagno": b, "color": get_bagno_color_class(b), "status": get_bagno_status(b)}
         for b in no_datcon
+        if is_fermo_visible_to_tipo(b, tipo)
     ]
     seen = {entry["bagno"].pk for entry in all_fermi}
 
@@ -699,6 +705,8 @@ def fermi_view(request):
         .prefetch_related("lavorazioni")
     )
     for b in with_datcon:
+        if not is_fermo_visible_to_tipo(b, tipo):
+            continue
         if get_bagno_status(b) == "S" and b.pk not in seen:
             seen.add(b.pk)
             all_fermi.append({"bagno": b, "color": "grigio", "status": "S"})
