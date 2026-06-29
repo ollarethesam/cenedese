@@ -21,20 +21,26 @@ from . import pdf
 from .models import (
     Bagno, Client, Disposizione, Lavorazione, UserProfile,
     CONI_CHOICES, PARAFF_CHOICES, NODI_CHOICES,
-    CAMERA_CHOICES, STRIBB_CHOICES, TIPPAR_CHOICES,
+    STRIBB_CHOICES, TIPPAR_CHOICES,
     SENSTR_CHOICES, OTTICA_CHOICES,
 )
 from .forms import DisposizioneForm, LavorazioneForm
 from .utils import (
     get_bagno_status,
     get_bagno_color_class,
-    is_fermo_visible_to_tipo,
+    is_bagno_visible_to_tipo,
     get_active_flags,
     get_disposition_defaults,
+    get_lavorazione_defaults,
     apply_disposizione_to_record,
+    apply_stribb_flags,
+    mark_pending,
     parse_titolo,
     log_modifica,
+    _WRITEBACK_FIELDS,
+    _STRIBB_FLAGS,
     get_previous_lavorazione,
+    get_latest_lavorazioni_by_stato,
     stato_label,
     check_lavorazione_notification_needed,
     send_lavorazione_notification,
@@ -61,6 +67,29 @@ def _get_profile_or_none(request):
         return None
 
 
+def _effective_tipo(request):
+    """
+    (effective_tipo, show_switch) for visibility filtering.
+    D/R operators are locked to their own tipo. Admins (tipo None) see all by
+    default but may impersonate a type via ?as=D / ?as=R.
+    """
+    profile = _get_profile_or_none(request)
+    own = profile.tipo if profile else None
+    if own in ("D", "R"):
+        return own, False
+    if own == "M":
+        # Magazzino sees every batch (like admin "Tutti"), with no switch.
+        return None, False
+    requested = request.GET.get("as")
+    return (requested if requested in ("D", "R") else None), True
+
+
+def _work_tipo(profile):
+    """The tipo used for the form variant, TIPDIS/TIPO and the edit lock.
+    A magazzino (M) operator works exactly as a dipanatura (D) operator."""
+    return "D" if profile.tipo == "M" else profile.tipo
+
+
 def _can_act_on_lav(request, lav, profile=None) -> bool:
     """
     Own-type rule: an operator may act on a lavorazione only when its TIPO
@@ -70,7 +99,7 @@ def _can_act_on_lav(request, lav, profile=None) -> bool:
         return True
     if profile is None:
         profile = _get_profile_or_none(request)
-    return profile is not None and lav.TIPO == profile.tipo
+    return profile is not None and lav.TIPO == _work_tipo(profile)
 
 
 def _lav_type_block(request, b, lav, action_verb):
@@ -211,6 +240,7 @@ def bagno_detail_view(request, codcli, bagno):
         "status_label": stato_label(status),
         "is_fermo":     status == "FERMO",
         "profile":      profile,
+        "work_tipo":    _work_tipo(profile),
     })
 
 
@@ -234,6 +264,7 @@ def set_datcon_view(request, codcli, bagno):
             return redirect("fermi")
         return redirect("bagno_detail", codcli=codcli, bagno=bagno)
 
+    mark_pending(b, ["DATCON"])
     b.save()
     log_modifica(b, request.user.username, f"Data consegna impostata: {b.DATCON:%d/%m/%Y}")
 
@@ -266,7 +297,7 @@ def disposizione_view(request, codcli, bagno):
     """
     b       = _get_bagno(codcli, bagno)
     profile = _get_profile(request)
-    tipdis  = profile.tipo
+    tipdis  = _work_tipo(profile)
 
     gate = _fermo_redirect(request, b)
     if gate:
@@ -295,11 +326,25 @@ def disposizione_view(request, codcli, bagno):
             action = request.POST.get("action", "salva")
             if action == "aggiorna_bagno":
                 apply_disposizione_to_record(disp, b, tipdis)
+                names = list(_WRITEBACK_FIELDS[tipdis])
+                if tipdis == "D":
+                    # STRIBB drives the STRAUT/STRDIP/ROCMAN flags (D-only field)
+                    apply_stribb_flags(disp, b)
+                    names += _STRIBB_FLAGS
+                mark_pending(b, names)
                 b.save()
                 log_modifica(b, request.user.username, "Valori disposizione copiati sul bagno")
             elif action == "aggiorna_articolo":
                 artico = b.CODART
                 apply_disposizione_to_record(disp, artico, tipdis)
+                # PESROC/PEROFI on Artico are derived from the DBF UNIMIS column and
+                # cannot round-trip, so they are never queued for the article push.
+                artico_names = [f for f in _WRITEBACK_FIELDS[tipdis]
+                                if f not in ("PESROC", "PEROFI")]
+                if tipdis == "D":
+                    apply_stribb_flags(disp, artico)
+                    artico_names += _STRIBB_FLAGS
+                mark_pending(artico, artico_names)
                 artico.save()
                 log_modifica(b, request.user.username,
                              f"Valori disposizione copiati sull'articolo {artico.CODART}")
@@ -366,7 +411,6 @@ _CODED_CHOICES = {
     "CONI":   CONI_CHOICES,
     "PARAFF": PARAFF_CHOICES,
     "NODI":   NODI_CHOICES,
-    "CAMERA": CAMERA_CHOICES,
     "STRIBB": STRIBB_CHOICES,
     "TIPPAR": TIPPAR_CHOICES,
     "SENSTR": SENSTR_CHOICES,
@@ -422,7 +466,7 @@ def lavorazione_print_view(request, codcli, bagno, pk):
 
 # Disposizione field names relevant to each type, for the saved-record path.
 _DISP_FIELDS = {
-    "D": ["CONI", "PARAFF", "NODI", "CAMERA", "STRIBB", "PEROFI", "MATROC"],
+    "D": ["PARAFF", "NODI", "STRIBB", "PEROFI", "MATROC"],
     "R": ["CONI", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
@@ -455,6 +499,30 @@ def _photo_slots(form, prev=None, post=None):
     return slots
 
 
+def _build_autofill_map(form, lav_by_stato):
+    """Serialize the per-STATO records for the client-side macchina autofill.
+
+    Returns ``{STATO: {field: "value", …, FOTOn: {"url": …, "keep": bool}}}`` covering
+    every form field except STATO (just picked) and the photo file inputs. COLLABO is
+    emitted as its PK so the select can be matched; values are strings ('' for None).
+    """
+    value_fields = [n for n in form.fields if n not in ("STATO", "FOTO1", "FOTO2", "FOTO3")]
+    autofill = {}
+    for stato, lav in lav_by_stato.items():
+        entry = {}
+        for name in value_fields:
+            if name == "COLLABO":
+                val = lav.COLLABO_id
+            else:
+                val = getattr(lav, name)
+            entry[name] = "" if val is None else str(val)
+        for name in ("FOTO1", "FOTO2", "FOTO3"):
+            f = getattr(lav, name)
+            entry[name] = {"url": f.url if f else "", "keep": bool(f)}
+        autofill[stato] = entry
+    return autofill
+
+
 @login_required
 def lavorazione_create_view(request, codcli, bagno):
     """
@@ -466,7 +534,7 @@ def lavorazione_create_view(request, codcli, bagno):
     """
     b       = _get_bagno(codcli, bagno)
     profile = _get_profile(request)
-    tipo    = profile.tipo
+    tipo    = _work_tipo(profile)
 
     gate = _fermo_redirect(request, b)
     if gate:
@@ -474,24 +542,31 @@ def lavorazione_create_view(request, codcli, bagno):
 
     prev = get_previous_lavorazione(b, tipo)
 
+    # Per-macchina autofill: most-recent lavorazione per STATO, used both to build
+    # the client-side autofill map and to resolve the photo source on POST.
+    lav_by_stato = get_latest_lavorazioni_by_stato(b, tipo)
+
     if request.method == "POST":
         form = LavorazioneForm(request.POST, request.FILES, tipo=tipo)
+        # Photo source = the STATO-matched record (per-macchina autofill), falling
+        # back to the baseline most-recent lavorazione before any STATO is chosen.
+        source = lav_by_stato.get(request.POST.get("STATO")) or prev
         if form.is_valid():
             lav       = form.save(commit=False)
             lav.bagno = b
             lav.TIPO  = tipo
 
-            # Carry forward inherited photos the user kept: reuse the previous
+            # Carry forward inherited photos the user kept: reuse the source
             # record's stored file reference (no new upload → no duplicate on disk).
             # The keep_* field is a boolean flag only; the path is re-derived from
-            # `prev`, never trusted from the client.
-            if prev is not None:
+            # `source`, never trusted from the client.
+            if source is not None:
                 for name in ("FOTO1", "FOTO2", "FOTO3"):
                     if name in request.FILES:
                         continue
                     if request.POST.get("keep_" + name) != "1":
                         continue
-                    f = getattr(prev, name)
+                    f = getattr(source, name)
                     if f:
                         setattr(lav, name, f.name)
 
@@ -505,10 +580,14 @@ def lavorazione_create_view(request, codcli, bagno):
             log_modifica(b, request.user.username, f"Lavorazione aggiunta: STATO={lav.STATO}")
 
             return redirect("lavorazione_list", codcli=codcli, bagno=bagno)
-        photo_slots = _photo_slots(form, prev=prev, post=request.POST)
+        photo_slots = _photo_slots(form, prev=source, post=request.POST)
     else:
-        initial = {"DIFETT": prev.DIFETT} if prev and prev.DIFETT else None
-        form = LavorazioneForm(tipo=tipo, initial=initial)
+        initial = {}
+        if prev and prev.DIFETT:
+            initial["DIFETT"] = prev.DIFETT
+        if tipo == "D":
+            initial.update(get_lavorazione_defaults(b))
+        form = LavorazioneForm(tipo=tipo, initial=initial or None)
         photo_slots = _photo_slots(form, prev=prev)
 
     return render(request, "core/lavorazione_form.html", {
@@ -519,6 +598,8 @@ def lavorazione_create_view(request, codcli, bagno):
         "photo_slots": photo_slots,
         # Seed Alpine from the form so a failed POST keeps the chosen STATO
         "initial_stato": form["STATO"].value() or "",
+        # Per-macchina autofill map: {STATO: {field: value, …, FOTOn: {url, keep}}}
+        "autofill": _build_autofill_map(form, lav_by_stato),
     })
 
 
@@ -627,6 +708,9 @@ def calendar_view(request):
     week_str              = request.GET.get("week")
     week_start, week_end  = _week_bounds(week_str)
 
+    # Operator type drives visibility via the stribbiatura flags (None = see all)
+    tipo, show_switch = _effective_tipo(request)
+
     # Batches with a delivery date falling in this week
     bagni = (
         Bagno.objects
@@ -640,7 +724,8 @@ def calendar_view(request):
     days = []
     for i in range(7):
         day_date = week_start + timedelta(days=i)
-        day_bagni = [b for b in bagni if b.DATCON == day_date]
+        day_bagni = [b for b in bagni
+                     if b.DATCON == day_date and is_bagno_visible_to_tipo(b, tipo)]
         days.append({
             "date":  day_date,
             "bagni": [
@@ -659,6 +744,9 @@ def calendar_view(request):
         "week_end":   week_end,
         "prev_week":  f"{prev_week.isocalendar()[0]}-{prev_week.isocalendar()[1]:02d}",
         "next_week":  f"{next_week.isocalendar()[0]}-{next_week.isocalendar()[1]:02d}",
+        "cur_week":   f"{week_start.isocalendar()[0]}-{week_start.isocalendar()[1]:02d}",
+        "view_as":    tipo,
+        "show_switch": show_switch,
     })
 
 
@@ -679,8 +767,7 @@ def fermi_view(request):
     not_shipped = Q(QUAUSC__isnull=True) | Q(QUAUSC__lte=0)
 
     # Operator type drives visibility via the stribbiatura flags (None = see all)
-    profile = _get_profile_or_none(request)
-    tipo = profile.tipo if profile else None
+    tipo, show_switch = _effective_tipo(request)
 
     # All batches without a delivery date
     no_datcon = (
@@ -693,7 +780,7 @@ def fermi_view(request):
     all_fermi = [
         {"bagno": b, "color": get_bagno_color_class(b), "status": get_bagno_status(b)}
         for b in no_datcon
-        if is_fermo_visible_to_tipo(b, tipo)
+        if is_bagno_visible_to_tipo(b, tipo)
     ]
     seen = {entry["bagno"].pk for entry in all_fermi}
 
@@ -705,10 +792,14 @@ def fermi_view(request):
         .prefetch_related("lavorazioni")
     )
     for b in with_datcon:
-        if not is_fermo_visible_to_tipo(b, tipo):
+        if not is_bagno_visible_to_tipo(b, tipo):
             continue
         if get_bagno_status(b) == "S" and b.pk not in seen:
             seen.add(b.pk)
             all_fermi.append({"bagno": b, "color": "grigio", "status": "S"})
 
-    return render(request, "core/fermi.html", {"fermi": all_fermi})
+    return render(request, "core/fermi.html", {
+        "fermi": all_fermi,
+        "view_as": tipo,
+        "show_switch": show_switch,
+    })

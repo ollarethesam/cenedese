@@ -5,7 +5,7 @@ Run with:  python manage.py seed_db
 
 Covers every test case:
   - All 8 calendar colour states
-  - Disposition defaults cascade (from Bagno, from Artico, special CAMERA rule)
+  - Disposition defaults cascade (from Bagno, from Artico)
   - Calculated PESROC/METROC defaults from QUAENT/NUMROC/TITOLO
   - Pre-existing dispositions (D and R)
   - Multiple lavorazioni on one batch (latest wins for status)
@@ -43,6 +43,7 @@ class Command(BaseCommand):
         self.stdout.write("  Login credentials:")
         self.stdout.write("    operatore_d / pass123  (Dipanatura)")
         self.stdout.write("    operatore_r / pass123  (Roccatura)")
+        self.stdout.write("    operatore_m / pass123  (Magazzino)")
 
     # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -55,10 +56,12 @@ class Command(BaseCommand):
         Client.objects.all().delete()
         Dipendente.objects.all().delete()
         UserProfile.objects.all().delete()
-        User.objects.filter(username__in=["operatore_d", "operatore_r"]).delete()
+        User.objects.filter(username__in=["operatore_d", "operatore_r", "operatore_m"]).delete()
         self.stdout.write("  Cleared existing data.")
 
     def _make_user(self, username, tipo):
+        # Drop any leftover user with this name so re-seeding is idempotent.
+        User.objects.filter(username=username).delete()
         user = User.objects.create_user(username=username, password="pass123")
         UserProfile.objects.create(user=user, tipo=tipo)
         return user
@@ -74,6 +77,7 @@ class Command(BaseCommand):
     def _seed_users(self):
         self._make_user("operatore_d", "D")
         self._make_user("operatore_r", "R")
+        self._make_user("operatore_m", "M")
         self.stdout.write("  Users created.")
 
     def _seed_employees(self):
@@ -96,7 +100,7 @@ class Command(BaseCommand):
     def _seed_articles(self):
         """
         6 articles with varying flags and defaults.
-        ART001+B has '+' in its code, which triggers CAMERA default='S'.
+        ART001+B has '+' in its code.
         """
         Artico.objects.create(
             CODART="ART001",
@@ -105,16 +109,15 @@ class Command(BaseCommand):
             TITOLO="Nm 2/28",
             PEROFI="1KG",
             # Flags
-            STRROC=True, CONDIZ=True,
+            STRAUT=True, CONDIZ=True,
             # Disposition defaults
             CONI="C",
             PARAFF="N", NODI="S",
-            CAMERA="N",
             NUMROC=10, PESROC=500, METROC=2000, TOLLER=5,
             VELOCI=800, TENSIO=12, SENSTR="O", OTTICA="F",
         )
         Artico.objects.create(
-            CODART="ART001+B",       # '+' in code → CAMERA default = 'S'
+            CODART="ART001+B",       # '+' in code
             DESCRI="Lana/seta mista",
             COMPO1="60% Lana",
             COMPO2="40% Seta",
@@ -133,6 +136,7 @@ class Command(BaseCommand):
             TITOLO="Ne 40/2",
             PESROC=400,
             PEROFI="1KG",
+            DIPANA=True,                  # DIPANA at artico level → D-visible
             METRAR=True, IMBALL=True,
             CONI="N",
             PARAFF="N", NODI="S",
@@ -144,7 +148,7 @@ class Command(BaseCommand):
             COMPO1="100% Acrilico",
             TITOLO="Nm 1/14",
             PEROFI="2KG",
-            ROCAUT=True, FONCON=True,
+            ROCMAN=True,
             CONI="R",
             PARAFF="S", TIPPAR="S",
             NUMROC=8, PESROC=1000,
@@ -157,7 +161,7 @@ class Command(BaseCommand):
             TITOLO="Dtex 167/2",
             PESROC=750,
             PEROFI="1.5KG",
-            STRROC=True, STRDIP=True,  # both flags → test STRIBB default logic
+            STRAUT=True, STRDIP=True,  # visible to both R (STRAUT) and D (STRDIP)
             CONDIZ=True,
             CONI="N",
             NUMROC=6, TOLLER=10,
@@ -171,7 +175,6 @@ class Command(BaseCommand):
             OLIARE=True,
             CONI="C",
             PARAFF="N", NODI="C",
-            CAMERA="S",
             NUMROC=24, PESROC=120, VELOCI=400,
         )
         self.stdout.write("  Articles created.")
@@ -201,7 +204,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=30),
             DATCON=today - timedelta(days=2),   # past delivery date
             QUAENT=50, QUAUSC=50,                # fully shipped → Verde, rimanenza 0
-            STRROC=True, CONDIZ=True,
+            STRAUT=True, CONDIZ=True,
             CONI="C", PARAFF="N", NODI="S",
             NUMROC=10, PESROC=500, METROC=2000, VELOCI=800, TENSIO=12,
             SENSTR="O", OTTICA="F",
@@ -218,7 +221,7 @@ class Command(BaseCommand):
             QUAENT=48,
             CONI="N", NUMROC=12,
         )
-        self._lav(b002, "1", collabo=emp1, VELDIP=750, PASSAG="2", NOTDR1="Prima passata ok")
+        self._lav(b002, "1", collabo=emp1, VELDIP=750, PASSAG="2", NOTDR="Prima passata ok")
 
         # ── TEST CASE: Arancione — dipanato da stribbiare ────────────────
         b003 = Bagno.objects.create(
@@ -227,7 +230,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=20),
             DATCON=today + timedelta(days=1),
             QUAENT=30,
-            STRROC=True, STRDIP=True,
+            STRAUT=True, STRDIP=True,
             CONI="N",
         )
         self._lav(b003, "D", DIFETT="Leggera irregolarità")
@@ -252,7 +255,6 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=8),
             DATCON=today + timedelta(days=2),
             QUAENT=29,
-            CAMERA="S",
             CONI="C", NUMROC=24, PESROC=120, VELOCI=400,
         )
         self._lav(b005, "C")
@@ -264,11 +266,11 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=12),
             DATCON=today + timedelta(days=5),
             QUAENT=50,
-            STRROC=True,
+            STRAUT=True, DIPANA=True,     # STRAUT → R-visible, DIPANA → D-visible
             CONI="C",
             NUMROC=10, PESROC=500, VELOCI=800, SENSTR="O", OTTICA="F",
         )
-        self._lav(b006, "R", NOTDR1="Tensione fuori tolleranza, necessario riroccare")
+        self._lav(b006, "R", NOTDR="Tensione fuori tolleranza, necessario riroccare")
 
         # ── TEST CASE: Grigio — sospeso ───────────────────────────────────
         b007 = Bagno.objects.create(
@@ -279,7 +281,7 @@ class Command(BaseCommand):
             QUAENT=48,
             CONI="N", NUMROC=12,
         )
-        self._lav(b007, "S", NOTDR2="In attesa di istruzioni dal cliente")
+        self._lav(b007, "S", NOTDR="In attesa di istruzioni dal cliente")
 
         # ── TEST CASE: Rosso — DATCON set, no lavorazioni ─────────────────
         Bagno.objects.create(
@@ -324,16 +326,16 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=18),
             DATCON=today + timedelta(days=7),
             QUAENT=50,
-            STRROC=True,
+            STRAUT=True,
             CONI="C",
             NUMROC=10, PESROC=500,
         )
         # First session on machine 3, second (later) on machine 2
         # → status should be Azzurro (machine 2 is the most recent)
-        self._lav(b011, "3", COLAFA="FAD", NOTDR1="Prima lavorazione")
-        self._lav(b011, "2", collabo=emp1, CODLAV="LAV-2024-011", NOTDR1="Trasferito su macchina 2")
+        self._lav(b011, "3", COLAFA="FAD", NOTDR="Prima lavorazione")
+        self._lav(b011, "2", collabo=emp1, CODLAV="LAV-2024-011", NOTDR="Trasferito su macchina 2")
 
-        # ── TEST CASE: CAMERA default = 'S' (CODART contains '+') ─────────
+        # ── TEST CASE: CODART contains '+' ────────────────────────────────
         b012 = Bagno.objects.create(
             CODCLI=cli_ab, BAGNO="B012", CODART=art1b,
             INTERN="INT012", ANNO=2025, COLORE="Bianco naturale", COLOR1="Crema",
@@ -344,7 +346,7 @@ class Command(BaseCommand):
             CONI="P",
             PARAFF="S", TIPPAR="L",
         )
-        # No disposizione yet — opening the D form should propose CAMERA='S'
+        # No disposizione yet — opening the D form pre-fills from Bagno/Artico
         self._lav(b012, "1", collabo=emp2, VELDIP=400, PASSAG="1")
 
         # ── TEST CASE: Pre-existing Dipanatura disposition ────────────────
@@ -354,16 +356,16 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=3),
             DATCON=today + timedelta(days=10),
             QUAENT=30,
-            STRROC=True, STRDIP=True,
+            STRAUT=True, STRDIP=True,
             CONI="N",
         )
         Disposizione.objects.create(
             bagno=b013, TIPDIS="D",
-            CONI="C", PARAFF="N", NODI="S",
-            CAMERA="N", STRIBB="R",
+            PARAFF="N", NODI="S",
+            STRIBB="R",
             PEROFI="1KG", MATROC=4,
         )
-        self._lav(b013, "4", VELDIP=850, NOTDR1="Tutto regolare")
+        self._lav(b013, "4", VELDIP=850, PESMAT=250, NOTDR="Tutto regolare")
 
         # ── TEST CASE: Pre-existing Roccatura disposition ─────────────────
         b014 = Bagno.objects.create(

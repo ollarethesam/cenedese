@@ -79,12 +79,12 @@
   {% if is_fermo %}
   <button @click="nextView = 'disposizione'; showDatcon = true"
           class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition text-sm">
-    Disposizione ({{ profile.tipo }})
+    Disposizione ({{ work_tipo }})
   </button>
   {% else %}
   <a href="{% url 'disposizione' codcli=bagno.CODCLI_id bagno=bagno.BAGNO %}"
      class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition text-sm">
-    Disposizione ({{ profile.tipo }})
+    Disposizione ({{ work_tipo }})
   </a>
   {% endif %}
 

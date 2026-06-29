@@ -78,23 +78,26 @@ def get_bagno_status(bagno: Bagno) -> str:
     return "FERMO"
 
 
-def is_fermo_visible_to_tipo(bagno: Bagno, tipo) -> bool:
+def is_bagno_visible_to_tipo(bagno: Bagno, tipo) -> bool:
     """
-    Whether a stuck batch should be shown to an operator of the given type
-    ('D', 'R', or None) on the Fermi page, based on the stribbiatura flags.
-
-    A flag counts as set if True on the Bagno OR its Artico:
-      STRROC only → Roccatura only; STRDIP only → Dipanatura only;
-      both or neither → visible to both. tipo=None → always visible.
+    Whether a batch is shown to an operator of the given type ('D', 'R', or None),
+    based on the processing flags. A flag counts as set if True on the Bagno OR
+    its Artico:
+      Roccatura  → visible if STRAUT or ROCMAN;
+      Dipanatura → visible if DIPANA or STRDIP;
+      neither relevant flag set → visible to nobody.
+    tipo=None (admin) → always visible.
     """
     if tipo not in ("D", "R"):
         return True
     artico = bagno.CODART
-    strroc = bagno.STRROC or (artico.STRROC if artico else False)
-    strdip = bagno.STRDIP or (artico.STRDIP if artico else False)
+
+    def flag(name):
+        return getattr(bagno, name) or (getattr(artico, name) if artico else False)
+
     if tipo == "R":
-        return strroc or not strdip
-    return strdip or not strroc  # tipo == "D"
+        return bool(flag("STRAUT") or flag("ROCMAN"))
+    return bool(flag("DIPANA") or flag("STRDIP"))
 
 
 def get_bagno_color_class(bagno: Bagno) -> str:
@@ -121,14 +124,14 @@ def get_bagno_color_class(bagno: Bagno) -> str:
 
 # (flag_field_name, display_label) — order matches spec
 _FLAG_LABELS = [
-    ("STRROC", "STRIBBIARE IN ROCCA"),
+    ("STRAUT", "STRIBBIA AUTOMATICA"),
     ("STRDIP", "STRIBBIARE IN DIPANA"),
+    ("DIPANA", "DIPANATO"),
     ("OLIARE", "OLIARE"),
     ("METRAR", "METRARE"),
     ("IMBALL", "IMBALLO"),
     ("CONDIZ", "CONDIZIONATURA"),
-    ("ROCAUT", "ROCCA AUTOMATICA"),
-    ("FONCON", "FONDO CONO"),
+    ("ROCMAN", "ROCCA MANUALE"),
 ]
 
 
@@ -138,7 +141,7 @@ def get_active_flags(obj) -> str:
     Works with any object that has the 8 processing flag fields (Artico or Bagno).
     Returns an empty string when no flags are set.
 
-    Example: STRROC=True, CONDIZ=True → "STRIBBIARE IN ROCCA, CONDIZIONATURA"
+    Example: STRDIP=True, CONDIZ=True → "STRIBBIARE IN DIPANA, CONDIZIONATURA"
     """
     active = [label for field, label in _FLAG_LABELS if getattr(obj, field, False)]
     return ", ".join(active)
@@ -147,6 +150,24 @@ def get_active_flags(obj) -> str:
 # ---------------------------------------------------------------------------
 # Disposition defaults cascade
 # ---------------------------------------------------------------------------
+
+def derive_stribb(bagno: Bagno) -> str:
+    """
+    STRIBB default derived from the processing flags, read with the
+    Bagno-OR-Artico cascade (same rule as is_bagno_visible_to_tipo).
+    STRDIP wins → 'D'; else STRAUT/ROCMAN → 'R'; else 'N'.
+    """
+    artico = bagno.CODART
+
+    def flag(name):
+        return getattr(bagno, name) or (getattr(artico, name) if artico else False)
+
+    if flag("STRDIP"):
+        return "D"
+    if flag("STRAUT") or flag("ROCMAN"):
+        return "R"
+    return "N"
+
 
 def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
     """
@@ -158,8 +179,6 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
       2. Artico-level defaults (article master)
 
     Special logic (from cenedese_analysis.md §7):
-      - CAMERA → propose 'S' if CODART contains '+'
-      - STRIBB → derived from STRDIP/STRROC flags (Bagno or Artico); not stored directly
       - PESROC → (QUAENT × 100) / NUMROC when both available (wins over stored values)
       - METROC → (t2/t1) × PESROC from the TITOLO 't1/t2' pair (wins over stored values)
     """
@@ -172,30 +191,20 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
 
     defaults = {}
 
-    # CONI, PARAFF, NODI: same field name in bagno and artico
-    defaults["CONI"]   = pick(b.CONI,   a.CONI)
+    # PARAFF, NODI: shared D+R; same field name in bagno and artico
     defaults["PARAFF"] = pick(b.PARAFF, a.PARAFF)
     defaults["NODI"]   = pick(b.NODI,   a.NODI)
 
     if tipdis == "D":
-        # CAMERA: special rule — if CODART contains '+', propose 'S'
-        if "+" in b.CODART_id:
-            defaults["CAMERA"] = "S"
-        else:
-            defaults["CAMERA"] = pick(b.CAMERA, a.CAMERA)
-
-        # STRIBB: derived from processing flags (Bagno first, then Artico), not stored as a field
-        if b.STRDIP or a.STRDIP:
-            defaults["STRIBB"] = "D"
-        elif b.STRROC or a.STRROC:
-            defaults["STRIBB"] = "R"
-        else:
-            defaults["STRIBB"] = "N"
-
+        # STRIBB default derived from the processing flags (see derive_stribb).
+        # Only used when no saved Disposizione exists; a saved value still wins.
+        defaults["STRIBB"] = derive_stribb(b)
         defaults["PEROFI"] = pick(b.PEROFI, a.PEROFI)
         defaults["MATROC"] = pick(b.MATROC, a.MATROC)
 
     if tipdis == "R":
+        # CONI: roccatura-only
+        defaults["CONI"]   = pick(b.CONI, a.CONI)
         defaults["NUMROC"] = b.NUMROC if b.NUMROC is not None else a.NUMROC
         defaults["PESROC"] = b.PESROC if b.PESROC is not None else a.PESROC
         defaults["METROC"] = b.METROC if b.METROC is not None else a.METROC
@@ -217,6 +226,15 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
         defaults["OTTICA"] = pick(b.OTTICA, a.OTTICA)
 
     return defaults
+
+
+def get_lavorazione_defaults(bagno: Bagno) -> dict:
+    """CODLAV/COLAFA master defaults for the new-lavorazione form (Bagno→Artico)."""
+    b, a = bagno, bagno.CODART
+    return {
+        "CODLAV": b.CODLAV or a.CODLAV,
+        "COLAFA": b.COLAFA or a.COLAFA,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -266,26 +284,48 @@ def compute_roccatura_values(quaent, numroc, titolo: str) -> dict:
 
 # Disposizione fields that map 1:1 onto Bagno/Artico columns, per type
 _WRITEBACK_FIELDS = {
-    "D": ["CONI", "PARAFF", "NODI", "CAMERA", "PEROFI", "MATROC"],
+    "D": ["PARAFF", "NODI", "PEROFI", "MATROC"],
     "R": ["CONI", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
+
+
+# Flag columns driven by the D-disposition STRIBB select (see apply_stribb_flags).
+# DIPANA is deliberately excluded — it is never touched by STRIBB write-back.
+_STRIBB_FLAGS = ["STRAUT", "STRDIP", "ROCMAN"]
 
 
 def apply_disposizione_to_record(disp: Disposizione, record, tipdis: str) -> None:
     """
     Copy a saved Disposizione's values onto a Bagno or Artico instance
     (both carry the same default columns via the shared mixins).
-    Reverse mapping of the defaults cascade:
-      - STRIBB → STRDIP/STRROC booleans (D form only)
+    Most processing flags are master data and are NOT written here; the only
+    exception is the STRAUT/STRDIP/ROCMAN trio, handled separately via
+    apply_stribb_flags() on the D write-back path.
     Mutates `record`; the caller saves it and writes the audit row.
     """
     for field in _WRITEBACK_FIELDS[tipdis]:
         setattr(record, field, getattr(disp, field))
 
-    if tipdis == "D":
-        record.STRDIP = disp.STRIBB == "D"
-        record.STRROC = disp.STRIBB == "R"
+
+def apply_stribb_flags(disp: Disposizione, record) -> None:
+    """
+    Translate a D Disposizione's STRIBB into the flag booleans on a Bagno/Artico:
+    R → STRAUT=1; D → STRDIP=1; else all 0. ROCMAN and the others reset to 0.
+    DIPANA is never touched. Mutates `record`; caller saves it and queues PENDING.
+    """
+    record.STRAUT = disp.STRIBB == "R"
+    record.STRDIP = disp.STRIBB == "D"
+    record.ROCMAN = False
+
+
+def mark_pending(record, names) -> None:
+    """
+    Union the given column NAMES into record.PENDING (de-duplicated, sorted),
+    flagging them for the sync daemon to push back into the DBF. Mutates
+    `record`; the caller saves it. Stores names only — never values.
+    """
+    record.PENDING = sorted(set(record.PENDING) | set(names))
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +342,18 @@ def get_previous_lavorazione(bagno: Bagno, tipo: str):
     """Most recent Lavorazione of the given operator type for this batch, or None.
     Source for pre-filling a new lavorazione's DIFETT/FOTO from the prior session."""
     return bagno.lavorazioni.filter(TIPO=tipo).order_by("-DATORA").first()
+
+
+def get_latest_lavorazioni_by_stato(bagno: Bagno, tipo: str) -> dict:
+    """Most recent Lavorazione of the given operator type per distinct STATO.
+
+    Returns ``{STATO: Lavorazione}`` keyed by machine/status code. Source for the
+    per-macchina autofill on the new-lavorazione form: picking a STATO that already
+    has a prior record pre-fills the whole form from that record."""
+    latest: dict = {}
+    for lav in bagno.lavorazioni.filter(TIPO=tipo).order_by("-DATORA"):
+        latest.setdefault(lav.STATO, lav)
+    return latest
 
 
 # ---------------------------------------------------------------------------
@@ -400,10 +452,9 @@ def send_lavorazione_notification(lav, operator_username, changes_detected=None)
                 "",
             ]
 
-            # Notes block (only if any note is present)
-            present_notes = [n for n in (lav.NOTDR1, lav.NOTDR2, lav.NOTDR3) if n]
-            if present_notes:
-                lines.append(f"Note: {' / '.join(present_notes)}")
+            # Notes block (only if a note is present)
+            if lav.NOTDR:
+                lines.append(f"Note: {lav.NOTDR}")
                 lines.append("")
 
             # Defect text

@@ -9,7 +9,7 @@ from django import forms
 from .models import (
     Disposizione, Lavorazione, Dipendente,
     PARAFF_CHOICES, NODI_CHOICES,
-    CAMERA_CHOICES, STRIBB_CHOICES, TIPPAR_CHOICES,
+    STRIBB_CHOICES, TIPPAR_CHOICES,
     SENSTR_CHOICES, OTTICA_CHOICES, TURNO_CHOICES,
     STATO_DIPANATURA, STATO_ROCCATURA,
 )
@@ -40,6 +40,13 @@ def _number(attrs=None):
     return forms.NumberInput(attrs=base)
 
 
+def _textarea(placeholder="", rows=3, attrs=None):
+    base = {"class": "form-input", "placeholder": placeholder, "rows": rows}
+    if attrs:
+        base.update(attrs)
+    return forms.Textarea(attrs=base)
+
+
 # Alpine @change handler for FOTO inputs: show a live preview of the chosen file
 # and drop any inherited photo (keep=false) in the per-slot scope.
 _PHOTO_PREVIEW = "const f=$event.target.files[0]; if(f){ preview=URL.createObjectURL(f); keep=false }"
@@ -54,9 +61,9 @@ class DisposizioneForm(forms.ModelForm):
     Form for creating or editing a Disposizione record.
 
     Fields are split by operator type:
-      - Shared fields:  CONI, PARAFF, NODI
-      - D-only fields:  CAMERA, STRIBB, PEROFI, MATROC
-      - R-only fields:  NUMROC, PESROC, METROC, TOLLER, COLCON,
+      - Shared fields:  PARAFF, NODI
+      - D-only fields:  STRIBB, PEROFI, MATROC
+      - R-only fields:  CONI, NUMROC, PESROC, METROC, TOLLER, COLCON,
                         TIPPAR, COLPAR, VELOCI, TENSIO, SENSTR, OTTICA
 
     Conditional visibility of TIPPAR (only if PARAFF='S') and
@@ -70,7 +77,6 @@ class DisposizioneForm(forms.ModelForm):
             "CONI":   _select(),
             "PARAFF": _select(),
             "NODI":   _select(),
-            "CAMERA": _select(),
             "STRIBB": _select(),
             "PEROFI": _text("es. 1KG"),
             "MATROC": _number(),
@@ -92,14 +98,14 @@ class DisposizioneForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         # --- shared fields always present ---
-        shared = ["CONI", "PARAFF", "NODI"]
+        shared = ["PARAFF", "NODI"]
 
         # --- type-specific fields ---
         if tipo == "D":
-            type_fields = ["CAMERA", "STRIBB", "PEROFI", "MATROC"]
+            type_fields = ["STRIBB", "PEROFI", "MATROC"]
         else:
             type_fields = [
-                "NUMROC", "PESROC", "METROC", "TOLLER",
+                "CONI", "NUMROC", "PESROC", "METROC", "TOLLER",
                 "COLCON", "TIPPAR", "COLPAR", "VELOCI",
                 "TENSIO", "SENSTR", "OTTICA",
             ]
@@ -112,7 +118,7 @@ class DisposizioneForm(forms.ModelForm):
             if field_name not in active_fields:
                 del self.fields[field_name]
 
-        # CONI: all codes (incl. Rotopress) available to both D and R — no restriction.
+        # CONI: roccatura-only; all codes (incl. Rotopress) available — no restriction.
 
         # Restrict NODI choices based on tipo
         if "NODI" in self.fields:
@@ -157,6 +163,7 @@ class LavorazioneForm(forms.ModelForm):
             "TURNO":  _select(),
             "STATO":  _select({"x-model": "stato"}),   # Alpine binding for conditionals
             "COLLABO": forms.Select(attrs={"class": "form-select"}),
+            "PESMAT": _number(),
             "CODLAV": _text("Codice lavorazione"),
             "COLAFA": _text("Codice Fadis"),
             "VELDIP": _number(),
@@ -166,10 +173,8 @@ class LavorazioneForm(forms.ModelForm):
             "PESFR2": _text("es. 500g"),
             "QUAPRO": _number({"step": "0.01"}),
             "SCARTI": _number(),
-            "DIFETT": _text("Descrivi i difetti"),
-            "NOTDR1": _text("Nota 1"),
-            "NOTDR2": _text("Nota 2"),
-            "NOTDR3": _text("Nota 3"),
+            "DIFETT": _textarea("Descrivi i difetti"),
+            "NOTDR":  _textarea("Note"),
             # Plain FileInput (not Clearable) so the styled .photo-input wrapper works;
             # an empty input on edit keeps the existing file.
             # x-ref/@change resolve to the per-slot Alpine scope in the template:
@@ -186,13 +191,13 @@ class LavorazioneForm(forms.ModelForm):
 
         # --- base fields always present ---
         base_fields = [
-            "TURNO", "STATO", "COLLABO", "DIFETT", "NOTDR1", "NOTDR2", "NOTDR3",
+            "TURNO", "STATO", "COLLABO", "DIFETT", "NOTDR",
             "FOTO1", "FOTO2", "FOTO3",
         ]
 
         # --- type-specific fields ---
         if tipo == "D":
-            type_fields = ["CODLAV", "COLAFA", "VELDIP", "PASSAG", "PESI", "PESFR1", "PESFR2"]
+            type_fields = ["PESMAT", "CODLAV", "COLAFA", "VELDIP", "PASSAG", "PESI", "PESFR1", "PESFR2"]
         else:
             type_fields = ["QUAPRO", "SCARTI"]
 

@@ -108,9 +108,7 @@
       {% if lav.QUAPRO %}<div><strong>Q. prodotta:</strong> {{ lav.QUAPRO }}</div>{% endif %}
       {% if lav.SCARTI %}<div><strong>Scarti:</strong> {{ lav.SCARTI }}</div>{% endif %}
       {% if lav.DIFETT %}<div class="col-span-2"><strong>Difetti:</strong> {{ lav.DIFETT }}</div>{% endif %}
-      {% if lav.NOTDR1 %}<div class="col-span-2"><strong>Nota 1:</strong> {{ lav.NOTDR1 }}</div>{% endif %}
-      {% if lav.NOTDR2 %}<div class="col-span-2"><strong>Nota 2:</strong> {{ lav.NOTDR2 }}</div>{% endif %}
-      {% if lav.NOTDR3 %}<div class="col-span-2"><strong>Nota 3:</strong> {{ lav.NOTDR3 }}</div>{% endif %}
+      {% if lav.NOTDR %}<div class="col-span-2"><strong>Note:</strong> {{ lav.NOTDR|linebreaksbr }}</div>{% endif %}
     </div>
 
     {# Photo thumbnails #}

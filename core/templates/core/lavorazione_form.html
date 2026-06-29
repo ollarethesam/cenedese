@@ -29,7 +29,21 @@
 
 <!-- Alpine component: 'stato' drives conditional dipanatura fields.
      Seeded from the form value so edits and failed POSTs keep the selection. -->
-<div x-data="{ stato: '{{ initial_stato }}', lightbox: '' }">
+<div x-data="{ stato: '{{ initial_stato }}', lightbox: '' }"
+     {% if not is_edit %}
+     {# Per-macchina autofill: on STATO change, fill the form from the most-recent
+        lavorazione recorded with that same STATO (data embedded in #autofill-data). #}
+     x-init="$watch('stato', code => {
+       const entry = JSON.parse(document.getElementById('autofill-data').textContent)[code];
+       if (!entry) return;
+       for (const [name, val] of Object.entries(entry)) {
+         if (name.startsWith('FOTO')) { $dispatch('autofill-photo', { slot: name, url: val.url, keep: val.keep }); continue; }
+         const el = $root.querySelector('[name=' + name + ']');
+         if (el) el.value = val;
+       }
+     })"
+     {% endif %}>
+{% if not is_edit %}{{ autofill|json_script:"autofill-data" }}{% endif %}
 <form method="post" enctype="multipart/form-data" class="space-y-4">
   {% csrf_token %}
 
@@ -81,6 +95,12 @@
   <div class="form-card">
     <p class="form-card-title">Parametri dipanatura</p>
     <div class="grid grid-cols-2 gap-3">
+
+      <div class="field-wrap">
+        <label class="form-label">{{ form.PESMAT.label }}</label>
+        {{ form.PESMAT }}
+        {% if form.PESMAT.errors %}<p class="text-red-500 text-xs">{{ form.PESMAT.errors.0 }}</p>{% endif %}
+      </div>
 
       <!-- CODLAV: visible only on macchine 1 or 2 -->
       <div class="field-wrap col-span-2" x-show="stato === '1' || stato === '2'" x-cloak>
@@ -164,18 +184,9 @@
       </div>
 
       <div class="field-wrap">
-        <label class="form-label">{{ form.NOTDR1.label }}</label>
-        {{ form.NOTDR1 }}
-      </div>
-
-      <div class="field-wrap">
-        <label class="form-label">{{ form.NOTDR2.label }}</label>
-        {{ form.NOTDR2 }}
-      </div>
-
-      <div class="field-wrap">
-        <label class="form-label">{{ form.NOTDR3.label }}</label>
-        {{ form.NOTDR3 }}
+        <label class="form-label">{{ form.NOTDR.label }}</label>
+        {{ form.NOTDR }}
+        {% if form.NOTDR.errors %}<p class="text-red-500 text-xs">{{ form.NOTDR.errors.0 }}</p>{% endif %}
       </div>
 
     </div>
@@ -194,7 +205,10 @@
            server-side (reusing the same file, no duplicate). -->
       {% for slot in photo_slots %}
       <div class="photo-input"
-           x-data="{ preview: '{{ slot.inherited_url }}', keep: {{ slot.keep|yesno:'true,false' }} }">
+           x-data="{ preview: '{{ slot.inherited_url }}', keep: {{ slot.keep|yesno:'true,false' }} }"
+           {% if not is_edit %}
+           @autofill-photo.window="if ($event.detail.slot === '{{ slot.name }}') { preview = $event.detail.url; keep = $event.detail.keep; $refs.file.value=''; }"
+           {% endif %}>
         <template x-if="preview">
           <img :src="preview" alt="{{ slot.field.label }}"
                class="h-12 w-12 object-cover rounded pointer-events-none">

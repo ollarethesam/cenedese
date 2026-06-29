@@ -11,6 +11,25 @@
   </a>
 </div>
 
+{% if show_switch %}
+{# ── Admin "view as" switch ───────────────────────────────────────────── #}
+<div class="flex items-center gap-2 mb-4 text-sm">
+  <span class="text-gray-500">Vista:</span>
+  <a href="{% url 'fermi' %}"
+     class="px-4 py-1.5 rounded {% if not view_as %}bg-blue-600 text-white{% else %}bg-white border border-gray-300 text-gray-600 hover:bg-gray-50{% endif %}">
+    Tutti
+  </a>
+  <a href="?as=D"
+     class="px-4 py-1.5 rounded {% if view_as == 'D' %}bg-blue-600 text-white{% else %}bg-white border border-gray-300 text-gray-600 hover:bg-gray-50{% endif %}">
+    Dipanatura
+  </a>
+  <a href="?as=R"
+     class="px-4 py-1.5 rounded {% if view_as == 'R' %}bg-blue-600 text-white{% else %}bg-white border border-gray-300 text-gray-600 hover:bg-gray-50{% endif %}">
+    Roccatura
+  </a>
+</div>
+{% endif %}
+
 <p class="text-sm text-gray-500 mb-4">
   Bagni senza data di consegna, o con ultima lavorazione in stato <strong>Sospeso</strong>.
 </p>
@@ -44,19 +63,36 @@
         <td class="px-4 py-3 text-gray-600 whitespace-nowrap">
           {% if entry.bagno.DATDDT %}{{ entry.bagno.DATDDT|date:"d/m/Y" }}{% else %}—{% endif %}
         </td>
-        <td class="px-4 py-3 text-right whitespace-nowrap">
+        <td class="px-4 py-3 text-right whitespace-nowrap" x-data="{ showDatcon: false }">
           <a href="{% url 'bagno_detail' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}"
              class="text-blue-600 hover:underline text-xs">Apri</a>
-          {% if not entry.bagno.DATCON and entry.bagno.DATDDT %}
-          <form method="post"
-                action="{% url 'set_datcon' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}"
-                onsubmit="return confirm('Impostare la data di consegna al {{ entry.bagno.DATDDT|date:"d/m/Y" }}?');"
-                class="inline ml-3">
-            {% csrf_token %}
-            <input type="hidden" name="datcon" value="{{ entry.bagno.DATDDT|date:"Y-m-d" }}">
-            <input type="hidden" name="next" value="fermi">
-            <button type="submit" class="text-blue-600 hover:underline text-xs">Aggiorna data consegna</button>
-          </form>
+          {% if not entry.bagno.DATCON %}
+          <button type="button" @click="showDatcon = true"
+                  class="text-blue-600 hover:underline text-xs ml-3">Aggiorna data consegna</button>
+
+          {# ── Delivery date modal (same as the detail-page fermo gate) ──── #}
+          <div x-show="showDatcon" x-cloak
+               class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+               @keydown.escape.window="showDatcon = false">
+            <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm text-left"
+                 @click.outside="showDatcon = false">
+              <h2 class="font-semibold text-gray-800 mb-2">Bagno fermo</h2>
+              <p class="text-sm text-gray-500 mb-4">
+                Inserisci la data di consegna per il bagno {{ entry.bagno.BAGNO }}.
+              </p>
+              <form method="post"
+                    action="{% url 'set_datcon' codcli=entry.bagno.CODCLI_id bagno=entry.bagno.BAGNO %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="fermi">
+                <input type="date" name="datcon" required class="form-input mb-4"
+                       {% if entry.bagno.DATDDT %}value="{{ entry.bagno.DATDDT|date:"Y-m-d" }}"{% endif %}>
+                <div class="flex gap-3">
+                  <button type="submit" class="btn btn-primary flex-1">Conferma</button>
+                  <button type="button" @click="showDatcon = false" class="btn btn-ghost flex-1">Annulla</button>
+                </div>
+              </form>
+            </div>
+          </div>
           {% endif %}
         </td>
       </tr>

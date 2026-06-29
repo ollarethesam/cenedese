@@ -10,6 +10,7 @@ Tables are split into two groups:
 """
 from django.db import models
 from django.contrib.auth.models import User
+from django.contrib.postgres.fields import ArrayField
 
 
 # ---------------------------------------------------------------------------
@@ -17,6 +18,9 @@ from django.contrib.auth.models import User
 # ---------------------------------------------------------------------------
 
 TIPO_CHOICES = [("D", "Dipanatura"), ("R", "Roccatura")]
+# User type adds Magazzino (M); it works as a D operator but is never written to
+# Disposizione.TIPDIS / Lavorazione.TIPO, which stay constrained to TIPO_CHOICES.
+USER_TIPO_CHOICES = TIPO_CHOICES + [("M", "Magazzino")]
 
 CONI_CHOICES = [
     ("C", "Cartone cliente"),
@@ -38,8 +42,6 @@ NODI_CHOICES = [
     ("C", "Code lunghe"),     # Dipanatura only
     ("A", "Con acqua"),       # Dipanatura only
 ]
-
-CAMERA_CHOICES = [("S", "Sì"), ("N", "No")]
 
 STRIBB_CHOICES = [
     ("N", "No"),
@@ -98,14 +100,14 @@ class ProcessingFlagsMixin(models.Model):
     8 boolean processing flags shared by Artico and Bagno.
     Display rule: show label only for flags set to True.
     """
-    STRROC = models.BooleanField(default=False, verbose_name="Stribbiare in rocca")
+    STRAUT = models.BooleanField(default=False, verbose_name="Stribbia automatica")
     STRDIP = models.BooleanField(default=False, verbose_name="Stribbiare in dipana")
+    DIPANA = models.BooleanField(default=False, verbose_name="Dipanato")
     OLIARE = models.BooleanField(default=False, verbose_name="Oliare")
     METRAR = models.BooleanField(default=False, verbose_name="Metrare")
     IMBALL = models.BooleanField(default=False, verbose_name="Imballo")
     CONDIZ = models.BooleanField(default=False, verbose_name="Condizionatura")
-    ROCAUT = models.BooleanField(default=False, verbose_name="Rocca automatica")
-    FONCON = models.BooleanField(default=False, verbose_name="Fondo cono")
+    ROCMAN = models.BooleanField(default=False, verbose_name="Rocca manuale")
 
     class Meta:
         abstract = True
@@ -128,7 +130,6 @@ class DispositionDefaultsMixin(models.Model):
     NODI    = models.CharField(max_length=1,  blank=True, choices=NODI_CHOICES,   verbose_name="Nodi")
 
     # --- dipanatura defaults ---
-    CAMERA  = models.CharField(max_length=1,  blank=True, choices=CAMERA_CHOICES, verbose_name="Camera")
     PEROFI  = models.CharField(max_length=10, blank=True, verbose_name="Peso rocca finita")
     MATROC  = models.IntegerField(null=True, blank=True, verbose_name="Matasse per rocca")
 
@@ -144,6 +145,20 @@ class DispositionDefaultsMixin(models.Model):
     TENSIO  = models.IntegerField(null=True, blank=True, verbose_name="Tensione")
     SENSTR  = models.CharField(max_length=1,  blank=True, choices=SENSTR_CHOICES, verbose_name="Sensibilità stribbia")
     OTTICA  = models.CharField(max_length=1,  blank=True, choices=OTTICA_CHOICES, verbose_name="Ottica")
+
+    class Meta:
+        abstract = True
+
+
+# ---------------------------------------------------------------------------
+# Mixin: lavorazione defaults
+# CODLAV/COLAFA master values used to pre-fill the Lavorazione form.
+# Synced read-only from the DBF; Bagno value overrides Artico (cascade).
+# ---------------------------------------------------------------------------
+
+class LavorazioneDefaultsMixin(models.Model):
+    CODLAV = models.CharField(max_length=3, blank=True, verbose_name="Codice lavorazione")
+    COLAFA = models.CharField(max_length=3, blank=True, verbose_name="Codice lavorazione Fadis")
 
     class Meta:
         abstract = True
@@ -170,7 +185,7 @@ class Client(models.Model):
         return f"{self.CODCLI} — {self.RAGSOC}"
 
 
-class Artico(ProcessingFlagsMixin, DispositionDefaultsMixin):
+class Artico(ProcessingFlagsMixin, DispositionDefaultsMixin, LavorazioneDefaultsMixin):
     """
     Article / product master data. Populated by EXE sync from Infinito ARTICO table.
     Also carries default disposition values (overridable at batch level).
@@ -182,6 +197,9 @@ class Artico(ProcessingFlagsMixin, DispositionDefaultsMixin):
     TITOLO  = models.CharField(max_length=20, blank=True, verbose_name="Titolo")
     NOTROC  = models.CharField(max_length=50, blank=True, verbose_name="Note rocca")
 
+    # Column NAMES (never values) awaiting push back to the DBF by the sync daemon.
+    PENDING = ArrayField(models.CharField(max_length=20), default=list, blank=True, db_column="PENDING")
+
     class Meta:
         verbose_name        = "Articolo"
         verbose_name_plural = "Articoli"
@@ -191,7 +209,7 @@ class Artico(ProcessingFlagsMixin, DispositionDefaultsMixin):
         return f"{self.CODART} — {self.DESCRI}"
 
 
-class Bagno(ProcessingFlagsMixin, DispositionDefaultsMixin):
+class Bagno(ProcessingFlagsMixin, DispositionDefaultsMixin, LavorazioneDefaultsMixin):
     """
     Batch record. Populated by EXE sync from Infinito MATE20XX tables.
     Primary key is the composite (CODCLI, BAGNO).
@@ -212,6 +230,9 @@ class Bagno(ProcessingFlagsMixin, DispositionDefaultsMixin):
     COLOR1  = models.CharField(max_length=20, blank=True, verbose_name="Colore 2")
     QUAENT  = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Quantità in entrata")
     QUAUSC  = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Quantità in uscita")
+
+    # Column NAMES (never values) awaiting push back to the DBF by the sync daemon.
+    PENDING = ArrayField(models.CharField(max_length=20), default=list, blank=True, db_column="PENDING")
 
     class Meta:
         verbose_name        = "Bagno"
@@ -240,7 +261,7 @@ class UserProfile(models.Model):
     The tipo determines which form variant is shown and which TIPDIS is saved.
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
-    tipo = models.CharField(max_length=1, choices=TIPO_CHOICES, verbose_name="Tipo operatore")
+    tipo = models.CharField(max_length=1, choices=USER_TIPO_CHOICES, verbose_name="Tipo operatore")
 
     class Meta:
         verbose_name        = "Profilo operatore"
@@ -281,7 +302,6 @@ class Disposizione(models.Model):
     NODI    = models.CharField(max_length=1,  blank=True, choices=NODI_CHOICES,   verbose_name="Nodi")
 
     # --- dipanatura only ---
-    CAMERA  = models.CharField(max_length=1,  blank=True, choices=CAMERA_CHOICES, verbose_name="Camera")
     STRIBB  = models.CharField(max_length=1,  blank=True, choices=STRIBB_CHOICES, verbose_name="Stribbia")
     PEROFI  = models.CharField(max_length=10, blank=True, verbose_name="Peso rocca finita")
     MATROC  = models.IntegerField(null=True, blank=True, verbose_name="Matasse per rocca")
@@ -326,6 +346,7 @@ class Lavorazione(models.Model):
     )
 
     # --- dipanatura fields ---
+    PESMAT  = models.IntegerField(null=True, blank=True, verbose_name="Peso matasse")
     CODLAV  = models.CharField(max_length=40, blank=True, verbose_name="Codice lavorazione")   # only STATO 1/2
     COLAFA  = models.CharField(max_length=3,  blank=True, verbose_name="Codice lavorazione Fadis")  # only STATO 3
     VELDIP  = models.IntegerField(null=True, blank=True, verbose_name="Velocità")
@@ -339,10 +360,8 @@ class Lavorazione(models.Model):
     SCARTI  = models.IntegerField(null=True, blank=True, verbose_name="Scarti (gr)")
 
     # --- shared ---
-    DIFETT  = models.CharField(max_length=80, blank=True, verbose_name="Difetti")
-    NOTDR1  = models.CharField(max_length=80, blank=True, verbose_name="Nota 1")
-    NOTDR2  = models.CharField(max_length=80, blank=True, verbose_name="Nota 2")
-    NOTDR3  = models.CharField(max_length=80, blank=True, verbose_name="Nota 3")
+    DIFETT  = models.CharField(max_length=255, blank=True, verbose_name="Difetti")
+    NOTDR   = models.CharField(max_length=255, blank=True, verbose_name="Note")
     FOTO1   = models.ImageField(upload_to="foto/", blank=True, null=True, verbose_name="Foto 1")
     FOTO2   = models.ImageField(upload_to="foto/", blank=True, null=True, verbose_name="Foto 2")
     FOTO3   = models.ImageField(upload_to="foto/", blank=True, null=True, verbose_name="Foto 3")
