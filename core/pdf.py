@@ -237,8 +237,8 @@ def _roccatura(bagno, lav, dv):
     elements.append(_full_row("Note", note))
 
     elements.append(Paragraph("OPERATORE & AVANZAMENTO", _SECTION))
+    elements.append(_full_row("Collaboratore", lav.COLLABO.NOME if lav.COLLABO else ""))
     elements.append(_field_table([
-        ("Collaboratrice",     lav.COLLABO.NOME if lav.COLLABO else ""),
         ("Macchina/Stato",     lav.get_STATO_display()),
         ("Turno",              lav.get_TURNO_display()),
         ("Quantità Prodotta",  lav.QUAPRO),
@@ -272,7 +272,7 @@ def _dipanatura(bagno, lav, dv):
         pesi_rows = [("Pesi", lav.PESI)]
 
     elements.append(Paragraph("OPERATORE & AVANZAMENTO", _SECTION_D))
-    elements.append(_full_row("Collaboratrice", lav.COLLABO.NOME if lav.COLLABO else "",
+    elements.append(_full_row("Collaboratore", lav.COLLABO.NOME if lav.COLLABO else "",
                               label_style=_LABEL_D, body=_BODY_D, padding=9))
     elements.append(_field_table([
         ("Macchina/Stato",  lav.get_STATO_display()),
@@ -315,9 +315,9 @@ def generate_lavorazione_pdf(bagno, lav, disp_values) -> bytes:
     barcode.hAlign = "CENTER"
 
     title_text = (
-        "SCHEDA DISPOSIZIONI DI ROCCATURA"
+        "DISPOSIZIONE ROCCATURA"
         if lav.TIPO == "R"
-        else "SCHEDA DISPOSIZIONI DI DIPANATURA"
+        else "DISPOSIZIONE DIPANATURA"
     )
 
     story = [
