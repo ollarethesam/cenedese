@@ -111,7 +111,7 @@ class Command(BaseCommand):
             # Flags
             STRAUT=True, CONDIZ=True,
             # Disposition defaults
-            CONI="C",
+            CONI="C", CONROC="C",
             PARAFF="N", NODI="S",
             NUMROC=10, PESROC=500, METROC=2000, TOLLER=5,
             VELOCI=800, TENSIO=12, SENSTR="O", OTTICA="F",
@@ -124,7 +124,7 @@ class Command(BaseCommand):
             TITOLO="Nm 2/60",
             PEROFI="500G",
             STRDIP=True, OLIARE=True,
-            CONI="P",
+            CONI="P", CONROC="P",
             PARAFF="S", NODI="M",
             TIPPAR="L",
             NUMROC=20, PESROC=250,
@@ -138,7 +138,7 @@ class Command(BaseCommand):
             PEROFI="1KG",
             DIPANA=True,                  # DIPANA at artico level → D-visible
             METRAR=True, IMBALL=True,
-            CONI="N",
+            CONI="N", CONROC="N",
             PARAFF="N", NODI="S",
             NUMROC=12, METROC=3000,
         )
@@ -149,7 +149,7 @@ class Command(BaseCommand):
             TITOLO="Nm 1/14",
             PEROFI="2KG",
             ROCMAN=True,
-            CONI="R",
+            CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
             PARAFF="S", TIPPAR="S",
             NUMROC=8, PESROC=1000,
             VELOCI=600, SENSTR="M",
@@ -163,7 +163,7 @@ class Command(BaseCommand):
             PEROFI="1.5KG",
             STRAUT=True, STRDIP=True,  # visible to both R (STRAUT) and D (STRDIP)
             CONDIZ=True,
-            CONI="N",
+            CONI="N", CONROC="N",
             NUMROC=6, TOLLER=10,
         )
         Artico.objects.create(
@@ -173,7 +173,7 @@ class Command(BaseCommand):
             TITOLO="Nm 2/48",
             PEROFI="240G",
             OLIARE=True,
-            CONI="C",
+            CONI="C", CONROC="C",
             PARAFF="N", NODI="C",
             NUMROC=24, PESROC=120, VELOCI=400,
         )
@@ -205,7 +205,7 @@ class Command(BaseCommand):
             DATCON=today - timedelta(days=2),   # past delivery date
             QUAENT=50, QUAUSC=50,                # fully shipped → Verde, rimanenza 0
             STRAUT=True, CONDIZ=True,
-            CONI="C", PARAFF="N", NODI="S",
+            CONI="C", CONROC="C", PARAFF="N", NODI="S",
             NUMROC=10, PESROC=500, METROC=2000, VELOCI=800, TENSIO=12,
             SENSTR="O", OTTICA="F",
         )
@@ -219,7 +219,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=15),
             DATCON=today + timedelta(days=3),
             QUAENT=48,
-            CONI="N", NUMROC=12,
+            CONI="N", CONROC="N", NUMROC=12,
         )
         self._lav(b002, "1", collabo=emp1, VELDIP=750, PASSAG="2", NOTDR="Prima passata ok")
 
@@ -231,7 +231,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=1),
             QUAENT=30,
             STRAUT=True, STRDIP=True,
-            CONI="N",
+            CONI="N", CONROC="N",
         )
         self._lav(b003, "D", DIFETT="Leggera irregolarità")
 
@@ -243,7 +243,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=4),
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
-            CONI="R",
+            CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
             NUMROC=8, PESROC=1000, VELOCI=600, SENSTR="M",
         )
         self._lav(b004, "A", tipo="R", collabo=emp2, QUAPRO=7500, SCARTI=12)
@@ -255,7 +255,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=8),
             DATCON=today + timedelta(days=2),
             QUAENT=29,
-            CONI="C", NUMROC=24, PESROC=120, VELOCI=400,
+            CONI="C", CONROC="C", NUMROC=24, PESROC=120, VELOCI=400,
         )
         self._lav(b005, "C")
 
@@ -267,7 +267,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=5),
             QUAENT=50,
             STRAUT=True, DIPANA=True,     # STRAUT → R-visible, DIPANA → D-visible
-            CONI="C",
+            CONI="C", CONROC="C",
             NUMROC=10, PESROC=500, VELOCI=800, SENSTR="O", OTTICA="F",
         )
         self._lav(b006, "R", NOTDR="Tensione fuori tolleranza, necessario riroccare")
@@ -279,7 +279,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=25),
             DATCON=today + timedelta(days=6),
             QUAENT=48,
-            CONI="N", NUMROC=12,
+            CONI="N", CONROC="N", NUMROC=12,
         )
         self._lav(b007, "S", NOTDR="In attesa di istruzioni dal cliente")
 
@@ -291,7 +291,7 @@ class Command(BaseCommand):
             DATCON=today,                        # due today, not started → Rosso
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
-            CONI="R",
+            CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
             NUMROC=8, PESROC=1000,
         )
 
@@ -303,7 +303,7 @@ class Command(BaseCommand):
             # DATCON intentionally null → Fermo
             QUAENT=24,
             NOTE="In attesa di conferma data consegna",
-            CONI="C",
+            CONI="C", CONROC="C",
         )
 
         # ── TEST CASE: Verde — QUAUSC overrides existing lavorazione ──────
@@ -314,7 +314,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=60),
             DATCON=today - timedelta(days=1),
             QUAENT=30, QUAUSC=18,
-            CONI="N",
+            CONI="N", CONROC="N",
         )
         # Even though last lavorazione is on machine 2 (Azzurro), QUAUSC wins
         self._lav(b010, "2", VELDIP=700)
@@ -327,7 +327,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=7),
             QUAENT=50,
             STRAUT=True,
-            CONI="C",
+            CONI="C", CONROC="C",
             NUMROC=10, PESROC=500,
         )
         # First session on machine 3, second (later) on machine 2
@@ -343,7 +343,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=2),
             QUAENT=40,
             STRDIP=True, OLIARE=True,
-            CONI="P",
+            CONI="P", CONROC="P",
             PARAFF="S", TIPPAR="L",
         )
         # No disposizione yet — opening the D form pre-fills from Bagno/Artico
@@ -357,7 +357,7 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=10),
             QUAENT=30,
             STRAUT=True, STRDIP=True,
-            CONI="N",
+            CONI="N", CONROC="N",
         )
         Disposizione.objects.create(
             bagno=b013, TIPDIS="D",
@@ -375,12 +375,12 @@ class Command(BaseCommand):
             DATCON=today + timedelta(days=3),
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
-            CONI="R",
+            CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
             NUMROC=8, PESROC=1000, VELOCI=600, SENSTR="M",
         )
         Disposizione.objects.create(
             bagno=b014, TIPDIS="R",
-            CONI="R", PARAFF="S", NODI="S",
+            CONROC="R", PARAFF="S", NODI="S",
             NUMROC=8, PESROC=1000, METROC=1500,
             TOLLER=5, COLCON="Nero",
             TIPPAR="S", COLPAR="Bianco",
@@ -399,7 +399,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=4),
             DATCON=today + timedelta(days=4),
             QUAENT=48,
-            CONI="C",
+            CONI="C", CONROC="C",
             NUMROC=8,
         )
 

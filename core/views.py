@@ -20,7 +20,7 @@ from django.views.decorators.http import require_POST
 from . import pdf
 from .models import (
     Bagno, Client, Disposizione, Lavorazione, UserProfile,
-    CONI_CHOICES, PARAFF_CHOICES, NODI_CHOICES,
+    CONROC_CHOICES, PARAFF_CHOICES, NODI_CHOICES,
     STRIBB_CHOICES, TIPPAR_CHOICES,
     SENSTR_CHOICES, OTTICA_CHOICES,
 )
@@ -408,7 +408,7 @@ def lavorazione_list_view(request, codcli, bagno):
 
 # Coded fields → their choice list, for resolving raw default codes to labels.
 _CODED_CHOICES = {
-    "CONI":   CONI_CHOICES,
+    "CONROC": CONROC_CHOICES,
     "PARAFF": PARAFF_CHOICES,
     "NODI":   NODI_CHOICES,
     "STRIBB": STRIBB_CHOICES,
@@ -467,7 +467,7 @@ def lavorazione_print_view(request, codcli, bagno, pk):
 # Disposizione field names relevant to each type, for the saved-record path.
 _DISP_FIELDS = {
     "D": ["PARAFF", "NODI", "STRIBB", "PEROFI", "MATROC"],
-    "R": ["CONI", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
+    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
 

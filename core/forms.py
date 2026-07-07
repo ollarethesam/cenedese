@@ -63,7 +63,7 @@ class DisposizioneForm(forms.ModelForm):
     Fields are split by operator type:
       - Shared fields:  PARAFF, NODI
       - D-only fields:  STRIBB, PEROFI, MATROC
-      - R-only fields:  CONI, NUMROC, PESROC, METROC, TOLLER, COLCON,
+      - R-only fields:  CONROC, NUMROC, PESROC, METROC, TOLLER, COLCON,
                         TIPPAR, COLPAR, VELOCI, TENSIO, SENSTR, OTTICA
 
     Conditional visibility of TIPPAR (only if PARAFF='S') and
@@ -74,7 +74,7 @@ class DisposizioneForm(forms.ModelForm):
         model  = Disposizione
         fields = "__all__"   # all fields loaded; unwanted ones removed in __init__
         widgets = {
-            "CONI":   _select(),
+            "CONROC": _select(),
             "PARAFF": _select(),
             "NODI":   _select(),
             "STRIBB": _select(),
@@ -105,7 +105,7 @@ class DisposizioneForm(forms.ModelForm):
             type_fields = ["STRIBB", "PEROFI", "MATROC"]
         else:
             type_fields = [
-                "CONI", "NUMROC", "PESROC", "METROC", "TOLLER",
+                "CONROC", "NUMROC", "PESROC", "METROC", "TOLLER",
                 "COLCON", "TIPPAR", "COLPAR", "VELOCI",
                 "TENSIO", "SENSTR", "OTTICA",
             ]
@@ -118,7 +118,7 @@ class DisposizioneForm(forms.ModelForm):
             if field_name not in active_fields:
                 del self.fields[field_name]
 
-        # CONI: roccatura-only; all codes (incl. Rotopress) available — no restriction.
+        # CONROC: roccatura-only; all codes (incl. Rotopress) available — no restriction.
 
         # Restrict NODI choices based on tipo
         if "NODI" in self.fields:

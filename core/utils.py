@@ -203,8 +203,8 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
         defaults["MATROC"] = pick(b.MATROC, a.MATROC)
 
     if tipdis == "R":
-        # CONI: roccatura-only
-        defaults["CONI"]   = pick(b.CONI, a.CONI)
+        # CONROC: roccatura-only
+        defaults["CONROC"] = pick(b.CONROC, a.CONROC)
         defaults["NUMROC"] = b.NUMROC if b.NUMROC is not None else a.NUMROC
         defaults["PESROC"] = b.PESROC if b.PESROC is not None else a.PESROC
         defaults["METROC"] = b.METROC if b.METROC is not None else a.METROC
@@ -285,7 +285,7 @@ def compute_roccatura_values(quaent, numroc, titolo: str) -> dict:
 # Disposizione fields that map 1:1 onto Bagno/Artico columns, per type
 _WRITEBACK_FIELDS = {
     "D": ["PARAFF", "NODI", "PEROFI", "MATROC"],
-    "R": ["CONI", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
+    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
 

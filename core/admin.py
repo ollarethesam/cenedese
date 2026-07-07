@@ -42,7 +42,7 @@ class DipendenteAdmin(admin.ModelAdmin):
 
 @admin.register(Disposizione)
 class DisposizioneAdmin(admin.ModelAdmin):
-    list_display  = ["bagno", "TIPDIS", "CONI", "PARAFF", "NODI"]
+    list_display  = ["bagno", "TIPDIS", "CONROC", "PARAFF", "NODI"]
     list_filter   = ["TIPDIS"]
     raw_id_fields = ["bagno"]
 

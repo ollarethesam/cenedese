@@ -212,7 +212,7 @@ def _roccatura(bagno, lav, dv):
 
     elements.append(Paragraph("PARAMETRI", _SECTION))
     elements.append(_field_table([
-        ("Tipo Supporto",     dv.get("CONI")),
+        ("Tipo Supporto",     dv.get("CONROC")),
         ("Colore Cono",       dv.get("COLCON")),
         ("Peso Rocca (gr)",   dv.get("PESROC")),
         ("Tolleranza",        dv.get("TOLLER")),

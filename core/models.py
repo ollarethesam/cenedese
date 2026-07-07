@@ -26,7 +26,10 @@ CONI_CHOICES = [
     ("C", "Cartone cliente"),
     ("N", "Cartone nostri"),
     ("P", "Plastica"),
-    ("R", "Rotopress"),       # available to both D and R (artico: CONI is DR)
+]
+
+CONROC_CHOICES = CONI_CHOICES + [
+    ("R", "Rotopress"),
 ]
 
 PARAFF_CHOICES = [
@@ -125,15 +128,17 @@ class DispositionDefaultsMixin(models.Model):
     Disposizione record exists yet. Present on both Artico and Bagno.
     """
     # --- shared D+R ---
-    CONI    = models.CharField(max_length=1,  blank=True, choices=CONI_CHOICES,   verbose_name="Coni")
     PARAFF  = models.CharField(max_length=1,  blank=True, choices=PARAFF_CHOICES, verbose_name="Paraffina")
     NODI    = models.CharField(max_length=1,  blank=True, choices=NODI_CHOICES,   verbose_name="Nodi")
 
     # --- dipanatura defaults ---
+    # CONI is dipanatura-level master data (C/N/P) — never edited by the webapp.
+    CONI    = models.CharField(max_length=1,  blank=True, choices=CONI_CHOICES,   verbose_name="Coni")
     PEROFI  = models.CharField(max_length=10, blank=True, verbose_name="Peso rocca finita")
     MATROC  = models.IntegerField(null=True, blank=True, verbose_name="Matasse per rocca")
 
     # --- roccatura defaults ---
+    CONROC  = models.CharField(max_length=1,  blank=True, choices=CONROC_CHOICES, verbose_name="Coni roccatura")
     NUMROC  = models.IntegerField(null=True, blank=True, verbose_name="Numero rocche")
     PESROC  = models.IntegerField(null=True, blank=True, verbose_name="Peso per rocca (g)")
     METROC  = models.IntegerField(null=True, blank=True, verbose_name="Metri per rocca")
@@ -297,7 +302,6 @@ class Disposizione(models.Model):
     TIPDIS  = models.CharField(max_length=1, choices=TIPO_CHOICES, verbose_name="Tipo disposizione")
 
     # --- shared D+R ---
-    CONI    = models.CharField(max_length=1,  blank=True, choices=CONI_CHOICES,   verbose_name="Coni")
     PARAFF  = models.CharField(max_length=1,  blank=True, choices=PARAFF_CHOICES, verbose_name="Paraffina")
     NODI    = models.CharField(max_length=1,  blank=True, choices=NODI_CHOICES,   verbose_name="Nodi")
 
@@ -307,6 +311,7 @@ class Disposizione(models.Model):
     MATROC  = models.IntegerField(null=True, blank=True, verbose_name="Matasse per rocca")
 
     # --- roccatura only ---
+    CONROC  = models.CharField(max_length=1,  blank=True, choices=CONROC_CHOICES, verbose_name="Coni roccatura")
     NUMROC  = models.IntegerField(null=True, blank=True, verbose_name="Numero rocche")
     PESROC  = models.IntegerField(null=True, blank=True, verbose_name="Peso per rocca (g)")
     METROC  = models.IntegerField(null=True, blank=True, verbose_name="Metri per rocca")
