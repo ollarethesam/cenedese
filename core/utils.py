@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 
 from .models import (
-    Bagno, Disposizione,
+    Bagno, Disposizione, Lavorazione,
     STATO_DIPANATURA, STATO_ROCCATURA, STATO_ALL,
 )
 
@@ -349,9 +349,21 @@ def get_latest_lavorazioni_by_stato(bagno: Bagno, tipo: str) -> dict:
 
     Returns ``{STATO: Lavorazione}`` keyed by machine/status code. Source for the
     per-macchina autofill on the new-lavorazione form: picking a STATO that already
-    has a prior record pre-fills the whole form from that record."""
+    has a prior record pre-fills the whole form from that record.
+
+    Own-bagno records win per STATO; for a STATO this bagno has no record for, fall
+    back to the most-recent Lavorazione on any same-artico bagno (same CODART, any
+    client), so setup carries across batches of the same article."""
     latest: dict = {}
+    # 1. Own bagno first — highest precedence per STATO.
     for lav in bagno.lavorazioni.filter(TIPO=tipo).order_by("-DATORA"):
+        latest.setdefault(lav.STATO, lav)
+    # 2. Same-artico siblings (any client), most-recent, only filling gaps.
+    siblings = (Lavorazione.objects
+                .filter(bagno__CODART=bagno.CODART_id, TIPO=tipo)
+                .exclude(bagno=bagno)
+                .order_by("-DATORA"))
+    for lav in siblings:
         latest.setdefault(lav.STATO, lav)
     return latest
 
