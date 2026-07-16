@@ -337,10 +337,10 @@ def disposizione_view(request, codcli, bagno):
             elif action == "aggiorna_articolo":
                 artico = b.CODART
                 apply_disposizione_to_record(disp, artico, tipdis)
-                # PESROC/PEROFI on Artico are derived from the DBF UNIMIS column and
+                # PESMAT/PEROFI on Artico are derived from the DBF UNIMIS column and
                 # cannot round-trip, so they are never queued for the article push.
                 artico_names = [f for f in _WRITEBACK_FIELDS[tipdis]
-                                if f not in ("PESROC", "PEROFI")]
+                                if f not in ("PESMAT", "PEROFI")]
                 if tipdis == "D":
                     apply_stribb_flags(disp, artico)
                     artico_names += _STRIBB_FLAGS
@@ -372,9 +372,9 @@ def disposizione_view(request, codcli, bagno):
         "initial_tippar": fval("TIPPAR") or "",
         "initial_senstr": fval("SENSTR") or "",
         "initial_numroc": fval("NUMROC"),
-        "initial_pesroc": fval("PESROC"),
+        "initial_pesmat": fval("PESMAT"),
         "initial_metroc": fval("METROC"),
-        # Inputs of the live PESROC/METROC calc chain, as JS literals
+        # Inputs of the live PESMAT/METROC calc chain, as JS literals
         # (it-IT localisation would render 50.0 as "50,0" and break the script)
         "quaent_js": repr(float(b.QUAENT)) if b.QUAENT is not None else "null",
         "t1_js":     repr(titolo_pair[0]) if titolo_pair else "null",
@@ -467,7 +467,7 @@ def lavorazione_print_view(request, codcli, bagno, pk):
 # Disposizione field names relevant to each type, for the saved-record path.
 _DISP_FIELDS = {
     "D": ["PARAFF", "NODI", "STRIBB", "PEROFI", "MATROC"],
-    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
+    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESMAT", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
 

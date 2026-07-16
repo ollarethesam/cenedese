@@ -140,7 +140,7 @@ class DispositionDefaultsMixin(models.Model):
     # --- roccatura defaults ---
     CONROC  = models.CharField(max_length=1,  blank=True, choices=CONROC_CHOICES, verbose_name="Coni roccatura")
     NUMROC  = models.IntegerField(null=True, blank=True, verbose_name="Numero rocche")
-    PESROC  = models.IntegerField(null=True, blank=True, verbose_name="Peso per rocca (g)")
+    PESMAT  = models.IntegerField(null=True, blank=True, verbose_name="Peso matasse")
     METROC  = models.IntegerField(null=True, blank=True, verbose_name="Metri per rocca")
     TOLLER  = models.IntegerField(null=True, blank=True, verbose_name="Tolleranza")
     COLCON  = models.CharField(max_length=20, blank=True, verbose_name="Colore cono")
@@ -313,7 +313,7 @@ class Disposizione(models.Model):
     # --- roccatura only ---
     CONROC  = models.CharField(max_length=1,  blank=True, choices=CONROC_CHOICES, verbose_name="Coni roccatura")
     NUMROC  = models.IntegerField(null=True, blank=True, verbose_name="Numero rocche")
-    PESROC  = models.IntegerField(null=True, blank=True, verbose_name="Peso per rocca (g)")
+    PESMAT  = models.IntegerField(null=True, blank=True, verbose_name="Peso matasse")
     METROC  = models.IntegerField(null=True, blank=True, verbose_name="Metri per rocca")
     TOLLER  = models.IntegerField(null=True, blank=True, verbose_name="Tolleranza")
     COLCON  = models.CharField(max_length=20, blank=True, verbose_name="Colore cono")

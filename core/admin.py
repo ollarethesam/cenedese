@@ -18,7 +18,7 @@ class ClientAdmin(admin.ModelAdmin):
 
 @admin.register(Artico)
 class ArticoAdmin(admin.ModelAdmin):
-    list_display = ["CODART", "DESCRI", "TITOLO", "PESROC"]
+    list_display = ["CODART", "DESCRI", "TITOLO", "PESMAT"]
     search_fields = ["CODART", "DESCRI"]
 
 

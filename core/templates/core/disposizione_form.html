@@ -26,34 +26,34 @@
   {% endif %}
 </p>
 
-{# Alpine state: conditional visibility + live PESROC/METROC calc chain.       #}
-{# numroc → pesroc = round(quaent·100 / numroc) → metroc = round(t2/t1 · pesroc) #}
+{# Alpine state: conditional visibility + live PESMAT/METROC calc chain.       #}
+{# numroc → pesmat = round(quaent·100 / numroc) → metroc = round(t2/t1 · pesmat) #}
 {# Manual edits stick until an upstream value changes.                          #}
 <div x-data="{
        paraff: '{{ initial_paraff }}',
        tippar: '{{ initial_tippar }}',
        senstr: '{{ initial_senstr }}',
        numroc: {{ initial_numroc|default_if_none:'null'|default:'null' }},
-       pesroc: {{ initial_pesroc|default_if_none:'null'|default:'null' }},
+       pesmat: {{ initial_pesmat|default_if_none:'null'|default:'null' }},
        metroc: {{ initial_metroc|default_if_none:'null'|default:'null' }},
        quaent: {{ quaent_js }},
        t1: {{ t1_js }},
        t2: {{ t2_js }},
        confirmAction: '',
-       recalcPesroc() {
+       recalcPesmat() {
          if (this.quaent != null && this.numroc) {
-           this.pesroc = Math.round((this.quaent * 100) / this.numroc);
+           this.pesmat = Math.round((this.quaent * 100) / this.numroc);
          }
        },
        recalcMetroc() {
-         if (this.t1 && this.t2 != null && this.pesroc != null && this.pesroc !== '') {
-           this.metroc = Math.round((this.t2 / this.t1) * this.pesroc);
+         if (this.t1 && this.t2 != null && this.pesmat != null && this.pesmat !== '') {
+           this.metroc = Math.round((this.t2 / this.t1) * this.pesmat);
          }
        }
      }"
      x-init="
-       $watch('numroc', () => recalcPesroc());
-       $watch('pesroc', () => recalcMetroc());
+       $watch('numroc', () => recalcPesmat());
+       $watch('pesmat', () => recalcMetroc());
      ">
 
 <form method="post" class="space-y-6">
@@ -135,7 +135,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
       {% if form.NUMROC %}<div>{% include "core/partials/form_field.html" with field=form.NUMROC %}</div>{% endif %}
-      {% if form.PESROC %}<div>{% include "core/partials/form_field.html" with field=form.PESROC %}</div>{% endif %}
+      {% if form.PESMAT %}<div>{% include "core/partials/form_field.html" with field=form.PESMAT %}</div>{% endif %}
       {% if form.METROC %}<div>{% include "core/partials/form_field.html" with field=form.METROC %}</div>{% endif %}
       {% if form.TOLLER %}<div>{% include "core/partials/form_field.html" with field=form.TOLLER %}</div>{% endif %}
       {% if form.COLCON %}<div>{% include "core/partials/form_field.html" with field=form.COLCON %}</div>{% endif %}

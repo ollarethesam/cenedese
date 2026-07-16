@@ -6,7 +6,7 @@ Run with:  python manage.py seed_db
 Covers every test case:
   - All 8 calendar colour states
   - Disposition defaults cascade (from Bagno, from Artico)
-  - Calculated PESROC/METROC defaults from QUAENT/NUMROC/TITOLO
+  - Calculated PESMAT/METROC defaults from QUAENT/NUMROC/TITOLO
   - Pre-existing dispositions (D and R)
   - Multiple lavorazioni on one batch (latest wins for status)
   - QUAUSC > 0 (spedito) overriding lavorazione status
@@ -113,7 +113,7 @@ class Command(BaseCommand):
             # Disposition defaults
             CONI="C", CONROC="C",
             PARAFF="N", NODI="S",
-            NUMROC=10, PESROC=500, METROC=2000, TOLLER=5,
+            NUMROC=10, PESMAT=500, METROC=2000, TOLLER=5,
             VELOCI=800, TENSIO=12, SENSTR="O", OTTICA="F",
         )
         Artico.objects.create(
@@ -127,14 +127,14 @@ class Command(BaseCommand):
             CONI="P", CONROC="P",
             PARAFF="S", NODI="M",
             TIPPAR="L",
-            NUMROC=20, PESROC=250,
+            NUMROC=20, PESMAT=250,
         )
         Artico.objects.create(
             CODART="ART002",
             DESCRI="Cotone pettinato",
             COMPO1="100% Cotone",
             TITOLO="Ne 40/2",
-            PESROC=400,
+            PESMAT=400,
             PEROFI="1KG",
             DIPANA=True,                  # DIPANA at artico level → D-visible
             METRAR=True, IMBALL=True,
@@ -151,7 +151,7 @@ class Command(BaseCommand):
             ROCMAN=True,
             CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
             PARAFF="S", TIPPAR="S",
-            NUMROC=8, PESROC=1000,
+            NUMROC=8, PESMAT=1000,
             VELOCI=600, SENSTR="M",
         )
         Artico.objects.create(
@@ -159,7 +159,7 @@ class Command(BaseCommand):
             DESCRI="Poliestere riciclato",
             COMPO1="100% Poliestere",
             TITOLO="Dtex 167/2",
-            PESROC=750,
+            PESMAT=750,
             PEROFI="1.5KG",
             STRAUT=True, STRDIP=True,  # visible to both R (STRAUT) and D (STRDIP)
             CONDIZ=True,
@@ -175,7 +175,7 @@ class Command(BaseCommand):
             OLIARE=True,
             CONI="C", CONROC="C",
             PARAFF="N", NODI="C",
-            NUMROC=24, PESROC=120, VELOCI=400,
+            NUMROC=24, PESMAT=120, VELOCI=400,
         )
         self.stdout.write("  Articles created.")
 
@@ -206,7 +206,7 @@ class Command(BaseCommand):
             QUAENT=50, QUAUSC=50,                # fully shipped → Verde, rimanenza 0
             STRAUT=True, CONDIZ=True,
             CONI="C", CONROC="C", PARAFF="N", NODI="S",
-            NUMROC=10, PESROC=500, METROC=2000, VELOCI=800, TENSIO=12,
+            NUMROC=10, PESMAT=500, METROC=2000, VELOCI=800, TENSIO=12,
             SENSTR="O", OTTICA="F",
         )
         # Add a lavorazione too — status should still be SPEDITO (QUAUSC wins)
@@ -244,7 +244,7 @@ class Command(BaseCommand):
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
             CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
-            NUMROC=8, PESROC=1000, VELOCI=600, SENSTR="M",
+            NUMROC=8, PESMAT=1000, VELOCI=600, SENSTR="M",
         )
         self._lav(b004, "A", tipo="R", collabo=emp2, QUAPRO=7500, SCARTI=12)
 
@@ -255,7 +255,7 @@ class Command(BaseCommand):
             DATDDT=today - timedelta(days=8),
             DATCON=today + timedelta(days=2),
             QUAENT=29,
-            CONI="C", CONROC="C", NUMROC=24, PESROC=120, VELOCI=400,
+            CONI="C", CONROC="C", NUMROC=24, PESMAT=120, VELOCI=400,
         )
         self._lav(b005, "C")
 
@@ -268,7 +268,7 @@ class Command(BaseCommand):
             QUAENT=50,
             STRAUT=True, DIPANA=True,     # STRAUT → R-visible, DIPANA → D-visible
             CONI="C", CONROC="C",
-            NUMROC=10, PESROC=500, VELOCI=800, SENSTR="O", OTTICA="F",
+            NUMROC=10, PESMAT=500, VELOCI=800, SENSTR="O", OTTICA="F",
         )
         self._lav(b006, "R", NOTDR="Tensione fuori tolleranza, necessario riroccare")
 
@@ -292,7 +292,7 @@ class Command(BaseCommand):
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
             CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
-            NUMROC=8, PESROC=1000,
+            NUMROC=8, PESMAT=1000,
         )
 
         # ── TEST CASE: Fermo — no DATCON, no lavorazioni ──────────────────
@@ -328,7 +328,7 @@ class Command(BaseCommand):
             QUAENT=50,
             STRAUT=True,
             CONI="C", CONROC="C",
-            NUMROC=10, PESROC=500,
+            NUMROC=10, PESMAT=500,
         )
         # First session on machine 3, second (later) on machine 2
         # → status should be Azzurro (machine 2 is the most recent)
@@ -376,22 +376,22 @@ class Command(BaseCommand):
             QUAENT=80,
             PARAFF="S", TIPPAR="S",
             CONI="N", CONROC="R",   # CONROC=Rotopress — roccatura-specific cone type
-            NUMROC=8, PESROC=1000, VELOCI=600, SENSTR="M",
+            NUMROC=8, PESMAT=1000, VELOCI=600, SENSTR="M",
         )
         Disposizione.objects.create(
             bagno=b014, TIPDIS="R",
             CONROC="R", PARAFF="S", NODI="S",
-            NUMROC=8, PESROC=1000, METROC=1500,
+            NUMROC=8, PESMAT=1000, METROC=1500,
             TOLLER=5, COLCON="Nero",
             TIPPAR="S", COLPAR="Bianco",
             VELOCI=600, TENSIO=10, SENSTR="M",
         )
         self._lav(b014, "P", tipo="R", collabo=emp2, QUAPRO=7800, SCARTI=8)
 
-        # ── TEST CASE: Calculated PESROC/METROC defaults ──────────────────
-        # No PESROC/METROC stored at bagno level; art1 TITOLO "Nm 2/28" parses
+        # ── TEST CASE: Calculated PESMAT/METROC defaults ──────────────────
+        # No PESMAT/METROC stored at bagno level; art1 TITOLO "Nm 2/28" parses
         # to (2, 28). Opening the R disposizione must propose:
-        #   PESROC = (48 × 100) / 8 = 600   (≠ artico's stored 500)
+        #   PESMAT = (48 × 100) / 8 = 600   (≠ artico's stored 500)
         #   METROC = (28 / 2) × 600 = 8400  (≠ artico's stored 2000)
         Bagno.objects.create(
             CODCLI=cli_ab, BAGNO="B015", CODART=art1,

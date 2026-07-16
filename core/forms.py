@@ -63,7 +63,7 @@ class DisposizioneForm(forms.ModelForm):
     Fields are split by operator type:
       - Shared fields:  PARAFF, NODI
       - D-only fields:  STRIBB, PEROFI, MATROC
-      - R-only fields:  CONROC, NUMROC, PESROC, METROC, TOLLER, COLCON,
+      - R-only fields:  CONROC, NUMROC, PESMAT, METROC, TOLLER, COLCON,
                         TIPPAR, COLPAR, VELOCI, TENSIO, SENSTR, OTTICA
 
     Conditional visibility of TIPPAR (only if PARAFF='S') and
@@ -85,9 +85,9 @@ class DisposizioneForm(forms.ModelForm):
             "TIPPAR": _select(),
             "SENSTR": _select(),
             "OTTICA": _select(),
-            # x-model.number feeds the live PESROC/METROC calc chain in the template
+            # x-model.number feeds the live PESMAT/METROC calc chain in the template
             "NUMROC": _number({"x-model.number": "numroc"}),
-            "PESROC": _number({"x-model.number": "pesroc"}),
+            "PESMAT": _number({"x-model.number": "pesmat"}),
             "METROC": _number({"x-model.number": "metroc"}),
             "VELOCI": _number(),
             "TOLLER": _number(),
@@ -105,7 +105,7 @@ class DisposizioneForm(forms.ModelForm):
             type_fields = ["STRIBB", "PEROFI", "MATROC"]
         else:
             type_fields = [
-                "CONROC", "NUMROC", "PESROC", "METROC", "TOLLER",
+                "CONROC", "NUMROC", "PESMAT", "METROC", "TOLLER",
                 "COLCON", "TIPPAR", "COLPAR", "VELOCI",
                 "TENSIO", "SENSTR", "OTTICA",
             ]

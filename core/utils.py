@@ -179,8 +179,8 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
       2. Artico-level defaults (article master)
 
     Special logic (from cenedese_analysis.md §7):
-      - PESROC → (QUAENT × 100) / NUMROC when both available (wins over stored values)
-      - METROC → (t2/t1) × PESROC from the TITOLO 't1/t2' pair (wins over stored values)
+      - PESMAT → (QUAENT × 100) / NUMROC when both available (wins over stored values)
+      - METROC → (t2/t1) × PESMAT from the TITOLO 't1/t2' pair (wins over stored values)
     """
     b = bagno
     a = bagno.CODART     # Artico instance
@@ -206,13 +206,13 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
         # CONROC: roccatura-only
         defaults["CONROC"] = pick(b.CONROC, a.CONROC)
         defaults["NUMROC"] = b.NUMROC if b.NUMROC is not None else a.NUMROC
-        defaults["PESROC"] = b.PESROC if b.PESROC is not None else a.PESROC
+        defaults["PESMAT"] = b.PESMAT if b.PESMAT is not None else a.PESMAT
         defaults["METROC"] = b.METROC if b.METROC is not None else a.METROC
 
         # Calculated defaults take precedence over the stored cascade
         calc = compute_roccatura_values(b.QUAENT, defaults["NUMROC"], a.TITOLO)
-        if calc["PESROC"] is not None:
-            defaults["PESROC"] = calc["PESROC"]
+        if calc["PESMAT"] is not None:
+            defaults["PESMAT"] = calc["PESMAT"]
         if calc["METROC"] is not None:
             defaults["METROC"] = calc["METROC"]
 
@@ -238,7 +238,7 @@ def get_lavorazione_defaults(bagno: Bagno) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Calculated roccatura values (PESROC / METROC)
+# Calculated roccatura values (PESMAT / METROC)
 # ---------------------------------------------------------------------------
 
 def parse_titolo(titolo: str):
@@ -261,21 +261,21 @@ def parse_titolo(titolo: str):
 def compute_roccatura_values(quaent, numroc, titolo: str) -> dict:
     """
     Formula defaults for the R disposition (mirrored client-side in Alpine):
-      PESROC = round((QUAENT × 100) / NUMROC)
-      METROC = round((t2 / t1) × PESROC)   with (t1, t2) parsed from TITOLO
+      PESMAT = round((QUAENT × 100) / NUMROC)
+      METROC = round((t2 / t1) × PESMAT)   with (t1, t2) parsed from TITOLO
     Each value is None when its inputs are missing.
     """
-    pesroc = None
+    pesmat = None
     if quaent is not None and numroc:
-        pesroc = round((float(quaent) * 100) / numroc)
+        pesmat = round((float(quaent) * 100) / numroc)
 
     metroc = None
     pair = parse_titolo(titolo)
-    if pesroc is not None and pair:
+    if pesmat is not None and pair:
         t1, t2 = pair
-        metroc = round((t2 / t1) * pesroc)
+        metroc = round((t2 / t1) * pesmat)
 
-    return {"PESROC": pesroc, "METROC": metroc}
+    return {"PESMAT": pesmat, "METROC": metroc}
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +285,7 @@ def compute_roccatura_values(quaent, numroc, titolo: str) -> dict:
 # Disposizione fields that map 1:1 onto Bagno/Artico columns, per type
 _WRITEBACK_FIELDS = {
     "D": ["PARAFF", "NODI", "PEROFI", "MATROC"],
-    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESROC", "METROC", "TOLLER",
+    "R": ["CONROC", "PARAFF", "NODI", "NUMROC", "PESMAT", "METROC", "TOLLER",
           "COLCON", "TIPPAR", "COLPAR", "VELOCI", "TENSIO", "SENSTR", "OTTICA"],
 }
 
