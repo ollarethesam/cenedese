@@ -124,14 +124,14 @@ def get_bagno_color_class(bagno: Bagno) -> str:
 
 # (flag_field_name, display_label) — order matches spec
 _FLAG_LABELS = [
-    ("STRAUT", "STRIBBIA AUTOMATICA"),
+    ("DIPANA", "DIPANATURA"),
     ("STRDIP", "STRIBBIARE IN DIPANA"),
-    ("DIPANA", "DIPANATO"),
-    ("OLIARE", "OLIARE"),
-    ("METRAR", "METRARE"),
-    ("IMBALL", "IMBALLO"),
-    ("CONDIZ", "CONDIZIONATURA"),
+    ("STRAUT", "STRIBBIA AUTOMATICA"),
     ("ROCMAN", "ROCCA MANUALE"),
+    ("METRAR", "METRARE"),
+    ("OLIARE", "OLIARE"),
+    ("CONDIZ", "CONDIZIONATURA"),
+    ("IMBALL", "IMBALLO"),
 ]
 
 
