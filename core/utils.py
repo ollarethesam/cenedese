@@ -153,18 +153,14 @@ def get_active_flags(obj) -> str:
 
 def derive_stribb(bagno: Bagno) -> str:
     """
-    STRIBB default derived from the processing flags, read with the
-    Bagno-OR-Artico cascade (same rule as is_bagno_visible_to_tipo).
+    STRIBB default derived from the Bagno's own processing flags (no Artico
+    cascade: the batch's flags are authoritative once it exists, so an
+    aggiorna_bagno write-back becomes the default).
     STRDIP wins → 'D'; else STRAUT/ROCMAN → 'R'; else 'N'.
     """
-    artico = bagno.CODART
-
-    def flag(name):
-        return getattr(bagno, name) or (getattr(artico, name) if artico else False)
-
-    if flag("STRDIP"):
+    if bagno.STRDIP:
         return "D"
-    if flag("STRAUT") or flag("ROCMAN"):
+    if bagno.STRAUT or bagno.ROCMAN:
         return "R"
     return "N"
 

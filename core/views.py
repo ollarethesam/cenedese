@@ -235,7 +235,7 @@ def bagno_detail_view(request, codcli, bagno):
     return render(request, "core/bagno_detail.html", {
         "bagno":        b,
         "artico":       b.CODART,
-        "flags_label":  get_active_flags(b) or get_active_flags(b.CODART),
+        "flags_label":  get_active_flags(b),
         "status":       status,
         "status_label": stato_label(status),
         "is_fermo":     status == "FERMO",
