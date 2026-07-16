@@ -229,11 +229,12 @@ def get_disposition_defaults(bagno: Bagno, tipdis: str) -> dict:
 
 
 def get_lavorazione_defaults(bagno: Bagno) -> dict:
-    """CODLAV/COLAFA master defaults for the new-lavorazione form (Bagno→Artico)."""
+    """CODLAV/COLAFA/PESMAT master defaults for the new-lavorazione form (Bagno→Artico)."""
     b, a = bagno, bagno.CODART
     return {
         "CODLAV": b.CODLAV or a.CODLAV,
         "COLAFA": b.COLAFA or a.COLAFA,
+        "PESMAT": b.PESMAT if b.PESMAT is not None else a.PESMAT,
     }
 
 
