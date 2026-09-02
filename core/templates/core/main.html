@@ -192,7 +192,9 @@
       }));
       return;
     }
-    fetch(`/client/${codcli}/bagni/`)
+    // Built via Django's url tag so it carries the script prefix when the app
+    // is served under a subpath; the placeholder is swapped in at call time.
+    fetch(`{% url 'bagni_by_client' codcli='__CODCLI__' %}`.replace('__CODCLI__', codcli))
       .then(r => r.json())
       .then(data => {
         window.dispatchEvent(new CustomEvent("set-combobox-options", {

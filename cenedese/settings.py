@@ -132,3 +132,24 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL          = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
+
+# --- Served under a subpath -------------------------------------------------
+# On the home server this runs at dev.ollarethesam.com/cenedese. Caddy strips
+# the prefix before proxying, so URL *routing* is unchanged; only the URLs the
+# app hands back to the browser need it put back on. Unset = unchanged locally.
+URL_PREFIX = os.getenv("URL_PREFIX", "")
+if URL_PREFIX:
+    FORCE_SCRIPT_NAME = URL_PREFIX
+    # What templates emit...
+    STATIC_URL = f"{URL_PREFIX}/static/"
+    MEDIA_URL  = f"{URL_PREFIX}/media/"
+    # ...but WhiteNoise still receives the stripped /static/ path from Caddy, so
+    # its lookup prefix must stay unprefixed or every asset 404s.
+    WHITENOISE_STATIC_PREFIX = "/static/"
+    # Caddy terminates TLS. SECURE_SSL_REDIRECT stays off (DEBUG is on here);
+    # this is what makes request.is_secure() true for CSRF.
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    # These are plain paths, not URL names, so Django will not prefix them.
+    LOGIN_URL           = f"{URL_PREFIX}/login/"
+    LOGIN_REDIRECT_URL  = f"{URL_PREFIX}/"
+    LOGOUT_REDIRECT_URL = f"{URL_PREFIX}/login/"

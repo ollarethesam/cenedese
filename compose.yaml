@@ -1,0 +1,44 @@
+# Cenedese — development stack for the home server.
+# Tailnet-only: the host port is bound to the tailscale address, never 0.0.0.0.
+# Caddy proxies dev.ollarethesam.com/cenedese → :8101 and strips the prefix.
+name: cenedese
+
+networks:
+  cenedese: {}
+
+volumes:
+  postgres_data:
+
+services:
+  cenedese-db:
+    image: postgres:16-alpine
+    container_name: cenedese-db
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [cenedese]
+
+  cenedese-web:
+    build: .
+    container_name: cenedese-web
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DB_HOST: cenedese-db
+    depends_on:
+      cenedese-db:
+        condition: service_healthy
+    ports:
+      - "100.101.196.35:8101:8000"
+    networks: [cenedese]
