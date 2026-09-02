@@ -101,11 +101,21 @@
         const el = this.$refs.input;
         el.addEventListener("focus", () => { this.focused = true; });
         el.addEventListener("blur",  () => { this.focused = false; });
+        // autofocus fires before Alpine initialises, so the focus event can
+        // have come and gone before the listener above existed. Seed the flag
+        // from the DOM rather than assuming the field starts unfocused.
         this.focusInput();
+        // Some browsers only settle focus after the first frame.
+        setTimeout(() => this.focusInput(), 0);
       },
 
       focusInput() {
-        if (this.$refs.input) this.$refs.input.focus();
+        const el = this.$refs.input;
+        if (!el) return;
+        el.focus();
+        // Trust the DOM, not the event: a programmatic focus() that succeeds
+        // silently still leaves the status line stuck on "tocca lo schermo".
+        this.focused = document.activeElement === el;
       },
 
       refocusSoon() {
