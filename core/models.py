@@ -18,9 +18,11 @@ from django.contrib.postgres.fields import ArrayField
 # ---------------------------------------------------------------------------
 
 TIPO_CHOICES = [("D", "Dipanatura"), ("R", "Roccatura")]
-# User type adds Magazzino (M); it works as a D operator but is never written to
-# Disposizione.TIPDIS / Lavorazione.TIPO, which stay constrained to TIPO_CHOICES.
-USER_TIPO_CHOICES = TIPO_CHOICES + [("M", "Magazzino")]
+# User type adds Magazzino (M) and Camera (C); both work as a D operator but are
+# never written to Disposizione.TIPDIS / Lavorazione.TIPO, which stay constrained
+# to TIPO_CHOICES. A camera operator is locked to the barcode scan page
+# (see core.middleware.CameraOperatorMiddleware).
+USER_TIPO_CHOICES = TIPO_CHOICES + [("M", "Magazzino"), ("C", "Camera")]
 
 CONI_CHOICES = [
     ("C", "Cartone cliente"),

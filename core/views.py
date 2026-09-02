@@ -77,8 +77,8 @@ def _effective_tipo(request):
     own = profile.tipo if profile else None
     if own in ("D", "R"):
         return own, False
-    if own == "M":
-        # Magazzino sees every batch (like admin "Tutti"), with no switch.
+    if own in ("M", "C"):
+        # Magazzino/camera see every batch (like admin "Tutti"), with no switch.
         return None, False
     requested = request.GET.get("as")
     return (requested if requested in ("D", "R") else None), True
@@ -86,8 +86,9 @@ def _effective_tipo(request):
 
 def _work_tipo(profile):
     """The tipo used for the form variant, TIPDIS/TIPO and the edit lock.
-    A magazzino (M) operator works exactly as a dipanatura (D) operator."""
-    return "D" if profile.tipo == "M" else profile.tipo
+    Magazzino (M) and camera (C) operators work exactly as a dipanatura (D) one,
+    so neither can ever write a tipo outside TIPO_CHOICES."""
+    return "D" if profile.tipo in ("M", "C") else profile.tipo
 
 
 def _can_act_on_lav(request, lav, profile=None) -> bool:
@@ -802,4 +803,81 @@ def fermi_view(request):
         "fermi": all_fermi,
         "view_as": tipo,
         "show_switch": show_switch,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Camera scan mode
+# ---------------------------------------------------------------------------
+
+def _is_camera_operator(request) -> bool:
+    """Whether this user may use the camera scan endpoints."""
+    if request.user.is_superuser:
+        return True
+    profile = _get_profile_or_none(request)
+    return profile is not None and profile.tipo == "C"
+
+
+@login_required
+def camera_scan_view(request):
+    """
+    Kiosk page for the camera operator: a hardware barcode scanner types the
+    code into the focused input, and each scan immediately records a camera
+    lavorazione. Rendering only — all the work happens in camera_scan_save_view.
+    """
+    return render(request, "core/camera_scan.html")
+
+
+@login_required
+@require_POST
+def camera_scan_save_view(request):
+    """
+    Record a camera lavorazione for the scanned batch and answer as JSON.
+
+    The barcode is split exactly as main_view splits it (first 5 chars = CODCLI,
+    the rest = BAGNO), which is the payload pdf.generate_lavorazione_pdf prints,
+    so a printed scheda round-trips through this flow.
+
+    Saves unconditionally — repeat scans deliberately create a new row each
+    time. The one refusal is a FERMO batch: it needs a delivery date first, and
+    a camera operator has no way to supply one.
+    """
+    if not _is_camera_operator(request):
+        return JsonResponse({"ok": False, "error": "Utente non abilitato."}, status=403)
+
+    raw = request.POST.get("barcode", "").strip()
+    if len(raw) < 6:
+        return JsonResponse({"ok": False, "error": "Codice a barre non valido."})
+
+    codcli, bagno_code = raw[:5], raw[5:]
+
+    b = (
+        Bagno.objects.select_related("CODART")
+        .filter(CODCLI_id=codcli, BAGNO=bagno_code)
+        .first()
+    )
+    if b is None:
+        return JsonResponse({
+            "ok": False, "codcli": codcli, "bagno": bagno_code,
+            "error": "Bagno non trovato.",
+        })
+
+    if get_bagno_status(b) == "FERMO":
+        return JsonResponse({
+            "ok": False, "codcli": codcli, "bagno": bagno_code,
+            "error": "Bagno fermo — manca la data di consegna.",
+        })
+
+    # STATO 'C' belongs to the dipanatura list, so the row is a TIPO='D' record:
+    # that keeps the calendar colour, status chain and the D operator's right to
+    # fix a mis-scan all working with no special-casing.
+    lav = Lavorazione.objects.create(bagno=b, TIPO="D", STATO="C")
+    log_modifica(b, request.user.username, f"Lavorazione aggiunta: STATO={lav.STATO}")
+
+    return JsonResponse({
+        "ok":     True,
+        "codcli": codcli,
+        "bagno":  bagno_code,
+        "descri": b.CODART.DESCRI,
+        "time":   timezone.localtime(lav.DATORA).strftime("%H:%M:%S"),
     })

@@ -8,6 +8,11 @@ urlpatterns = [
     # AJAX: bagni dropdown for manual search
     path("client/<str:codcli>/bagni/",                           views.bagni_by_client,         name="bagni_by_client"),
 
+    # Camera scan mode — the only two routes a 'C' operator may reach
+    # (see core.middleware.CameraOperatorMiddleware).
+    path("camera/",                                              views.camera_scan_view,        name="camera_scan"),
+    path("camera/save/",                                         views.camera_scan_save_view,   name="camera_scan_save"),
+
     # NOTE: BAGNO codes can contain '/' (e.g. "2026/346"), hence <path:bagno>.
     # The bare detail route must stay LAST among the bagno/ routes: <path:>
     # is greedy and would otherwise swallow the /disposizione/ and

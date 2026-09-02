@@ -44,6 +44,7 @@ class Command(BaseCommand):
         self.stdout.write("    operatore_d / pass123  (Dipanatura)")
         self.stdout.write("    operatore_r / pass123  (Roccatura)")
         self.stdout.write("    operatore_m / pass123  (Magazzino)")
+        self.stdout.write("    operatore_c / pass123  (Camera — solo scansione)")
 
     # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ class Command(BaseCommand):
         Client.objects.all().delete()
         Dipendente.objects.all().delete()
         UserProfile.objects.all().delete()
-        User.objects.filter(username__in=["operatore_d", "operatore_r", "operatore_m"]).delete()
+        User.objects.filter(username__in=["operatore_d", "operatore_r", "operatore_m", "operatore_c"]).delete()
         self.stdout.write("  Cleared existing data.")
 
     def _make_user(self, username, tipo):
@@ -78,6 +79,7 @@ class Command(BaseCommand):
         self._make_user("operatore_d", "D")
         self._make_user("operatore_r", "R")
         self._make_user("operatore_m", "M")
+        self._make_user("operatore_c", "C")
         self.stdout.write("  Users created.")
 
     def _seed_employees(self):

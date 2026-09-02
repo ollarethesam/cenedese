@@ -1,0 +1,168 @@
+{% extends "core/base.html" %}
+{% block title %}Scansione camera — Cenedese{% endblock %}
+
+{% block content %}
+
+{#
+  Kiosk page for the handheld barcode scanner. The scanner is a keyboard wedge:
+  it types the code into the focused input and (usually) sends Enter. Enter is
+  the primary trigger; a short idle timer is the fallback for scanners that ship
+  without an Enter suffix, so a device misconfiguration can't leave the page
+  silently deaf.
+#}
+<div x-data="cameraScan()" x-init="init()" @click="focusInput()" class="max-w-xl mx-auto">
+
+  {% csrf_token %}
+
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-xl font-bold text-gray-900">Scansione camera</h1>
+    <div class="flex items-center gap-3">
+      <span class="px-2 py-0.5 rounded-full text-xs bg-pink-100 text-pink-700 font-semibold">CAM</span>
+      <span class="text-sm text-gray-500">{{ user.username }}</span>
+      <form method="post" action="{% url 'logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="text-sm text-red-500 hover:underline">Esci</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Scanner input ─────────────────────────────────────────────────── -->
+  {# Visible rather than hidden: the operator can see the code arriving, and a
+     stuck/unfocused scanner is diagnosable at a glance. #}
+  <div class="form-card">
+    <label class="form-label" for="scan-input">Codice a barre</label>
+    <input id="scan-input" type="text" x-ref="input" x-model="buffer"
+           autofocus autocomplete="off" autocapitalize="off" autocorrect="off"
+           spellcheck="false" inputmode="none"
+           placeholder="Pronto — premi il trigger"
+           class="form-input text-center text-lg tracking-wider"
+           @keydown.enter.prevent="submitBuffer()"
+           @input="scheduleIdleSubmit()"
+           @blur="refocusSoon()">
+    <p class="text-xs text-gray-400 mt-2 text-center" x-show="!busy" x-cloak>
+      Ogni scansione registra subito una lavorazione in camera.
+    </p>
+    <p class="text-xs text-blue-500 mt-2 text-center" x-show="busy" x-cloak>
+      Salvataggio…
+    </p>
+  </div>
+
+  <!-- ── Last result ───────────────────────────────────────────────────── -->
+  <template x-if="last">
+    <div class="rounded-2xl p-6 mb-4 text-center"
+         :class="last.ok ? 'bg-green-50 border-2 border-green-500' : 'bg-red-50 border-2 border-red-500'">
+      <div class="text-6xl leading-none mb-3" x-text="last.ok ? '✓' : '✗'"
+           :class="last.ok ? 'text-green-600' : 'text-red-600'"></div>
+      <p class="text-2xl font-bold text-gray-900" x-text="last.code"></p>
+      <p class="text-sm mt-1" :class="last.ok ? 'text-green-700' : 'text-red-700'"
+         x-text="last.detail"></p>
+      <p class="text-xs text-gray-400 mt-2" x-text="last.time"></p>
+    </div>
+  </template>
+
+  <!-- ── Scan log ──────────────────────────────────────────────────────── -->
+  {# Client-side only: it resets on reload. Successful scans are recorded
+     durably in the Modifica audit table regardless; errors are not. #}
+  <div class="form-card" x-show="log.length" x-cloak>
+    <p class="form-card-title">Registro scansioni</p>
+    <ul class="divide-y divide-gray-100 text-sm">
+      <template x-for="entry in log" :key="entry.id">
+        <li class="flex items-baseline gap-3 py-2">
+          <span class="text-base" :class="entry.ok ? 'text-green-600' : 'text-red-600'"
+                x-text="entry.ok ? '✓' : '✗'"></span>
+          <span class="text-gray-400 text-xs w-16 shrink-0" x-text="entry.time"></span>
+          <span class="font-medium text-gray-800" x-text="entry.code"></span>
+          <span class="text-gray-500 text-xs ml-auto text-right" x-text="entry.detail"></span>
+        </li>
+      </template>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+  document.addEventListener("alpine:init", () => {
+    Alpine.data("cameraScan", () => ({
+      buffer: "",
+      busy: false,
+      last: null,
+      log: [],
+      idleTimer: null,
+      seq: 0,
+
+      init() {
+        // The soft keyboard, a screen wake or a stray tap can all steal focus;
+        // a scan that lands nowhere is silently lost, so keep reclaiming it.
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) this.focusInput();
+        });
+        this.focusInput();
+      },
+
+      focusInput() {
+        if (this.$refs.input) this.$refs.input.focus();
+      },
+
+      refocusSoon() {
+        setTimeout(() => this.focusInput(), 50);
+      },
+
+      // Fallback for scanners with no Enter suffix: submit once the keystrokes
+      // stop. Enter, when it does arrive, cancels this and submits immediately.
+      scheduleIdleSubmit() {
+        clearTimeout(this.idleTimer);
+        this.idleTimer = setTimeout(() => this.submitBuffer(), 150);
+      },
+
+      submitBuffer() {
+        clearTimeout(this.idleTimer);
+        const code = this.buffer.trim();
+        this.buffer = "";
+        if (!code || this.busy) return;
+        this.send(code);
+      },
+
+      async send(code) {
+        this.busy = true;
+        try {
+          const body = new URLSearchParams({ barcode: code });
+          const res = await fetch("{% url 'camera_scan_save' %}", {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body,
+          });
+          const data = await res.json();
+          this.record(code, data);
+        } catch (err) {
+          this.record(code, { ok: false, error: "Errore di rete — riprova." });
+        } finally {
+          this.busy = false;
+          this.focusInput();
+        }
+      },
+
+      record(code, data) {
+        const label = data.codcli ? `${data.codcli} / ${data.bagno}` : code;
+        const entry = {
+          id: ++this.seq,
+          ok: !!data.ok,
+          code: label,
+          detail: data.ok ? (data.descri || "Lavorazione registrata") : data.error,
+          time: data.time || new Date().toLocaleTimeString("it-IT"),
+        };
+        this.last = entry;
+        this.log.unshift(entry);
+        if (this.log.length > 20) this.log.pop();
+
+        // Confirmation at arm's length: one short pulse on success, a double
+        // pulse on failure.
+        if (navigator.vibrate) navigator.vibrate(entry.ok ? 80 : [90, 70, 90]);
+      },
+    }));
+  });
+</script>
+
+{% endblock %}
