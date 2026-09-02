@@ -31,12 +31,17 @@
   {# is delivering nothing at all is diagnosable at a glance.                   #}
   <div class="form-card">
     <label class="form-label" for="scan-input">Codice a barre</label>
+    {# No inputmode="none" here: it suppresses the soft keyboard, but Android    #}
+    {# then may not open an InputConnection, and a scanner that commits text    #}
+    {# through the IME has nowhere to put it — keydown fires with              #}
+    {# key="Unidentified" and no text ever lands.                              #}
     <input id="scan-input" type="text" x-ref="input"
            autofocus autocomplete="off" autocapitalize="off" autocorrect="off"
-           spellcheck="false" inputmode="none"
+           spellcheck="false"
            placeholder="Pronto — premi il trigger"
            class="form-input text-center text-lg tracking-wider"
            @input="onInput()"
+           @beforeinput="onBeforeInput($event)"
            @blur="refocusSoon()">
     <div class="flex items-center justify-between mt-2 text-xs">
       <span :class="focused ? 'text-green-600' : 'text-amber-600'"
@@ -157,24 +162,40 @@
 
       onKey(e) {
         const tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "?";
-        this.logEvent(`keydown key=${JSON.stringify(e.key)} code=${e.code || "-"} kc=${e.keyCode} → ${tag}`);
+        this.logEvent(`keydown key=${JSON.stringify(e.key)} code=${e.code || "-"} ` +
+                      `kc=${e.keyCode} → ${tag} field=${JSON.stringify(this.$refs.input.value)}`);
 
         if (e.key === "Enter" || e.key === "Tab") {
           e.preventDefault();
           this.submitBuffer();
           return;
         }
-        if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
 
-        // Only shadow-buffer when the field itself isn't receiving the text;
-        // otherwise the character would be counted twice.
-        if (e.target !== this.$refs.input) this.shadow += e.key;
+        // An Android IME reports key="Unidentified" / keyCode 229 or 0 and
+        // delivers the text through input/beforeinput instead. Those keydowns
+        // carry no character, but they still mean a scan is in progress — so
+        // arm the idle timer regardless, rather than returning early.
+        if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          // Only shadow-buffer when the field itself isn't receiving the text;
+          // otherwise the character would be counted twice.
+          if (e.target !== this.$refs.input) this.shadow += e.key;
+        }
         this.scheduleIdleSubmit();
       },
 
       onInput() {
         this.logEvent(`input value=${JSON.stringify(this.$refs.input.value)}`);
         this.scheduleIdleSubmit();
+      },
+
+      onBeforeInput(e) {
+        this.logEvent(`beforeinput type=${e.inputType} data=${JSON.stringify(e.data)}`);
+        // Some scanners terminate with a newline rather than an Enter key.
+        if (e.inputType === "insertLineBreak" || (e.data && e.data.indexOf("\n") !== -1)) {
+          e.preventDefault();
+          if (e.data) this.$refs.input.value = e.data.replace(/[\r\n]+/g, "");
+          this.submitBuffer();
+        }
       },
 
       onPaste(e) {
