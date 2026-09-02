@@ -3,85 +3,76 @@
 
 {% block content %}
 
-{# Kiosk page for the handheld barcode scanner.                                #}
-{# Scanners deliver a code in several different ways, so capture is layered:   #}
-{#   1. keydown on document — keyboard-wedge/HID, works even if focus is lost  #}
-{#   2. input event on the field — IME-style commitText injection              #}
-{#   3. paste event — clipboard-output scanners                                #}
-{# Enter submits; a short idle timer is the fallback when no Enter suffix is   #}
-{# configured. The diagnostics panel shows what the device actually emitted.   #}
+{# Kiosk page for the handheld barcode scanner. Deliberately bare: the operator #}
+{# is not a phone user, so the screen answers only three things — am I ready,   #}
+{# what just happened, what were the last few scans.                            #}
+{# Scanners deliver a code in several different ways, so capture is layered:    #}
+{#   1. keydown on document — keyboard-wedge/HID, works even if focus is lost   #}
+{#   2. input event on the field — IME-style commitText injection (the DT50)    #}
+{#   3. paste event — clipboard-output scanners                                 #}
+{# Enter submits; a short idle timer is the fallback when no Enter suffix is    #}
+{# configured.                                                                  #}
 
-<div x-data="cameraScan()" x-init="init()" @click="focusInput()" class="max-w-xl mx-auto">
+<div x-data="cameraScan()" x-init="init()" @click="focusInput()"
+     class="max-w-md mx-auto pt-2">
 
   {% csrf_token %}
 
-  <div class="flex items-center justify-between mb-4">
-    <h1 class="text-xl font-bold text-gray-900">Scansione camera</h1>
-    <div class="flex items-center gap-3">
-      <span class="px-2 py-0.5 rounded-full text-xs bg-pink-100 text-pink-700 font-semibold">CAM</span>
-      <span class="text-sm text-gray-500">{{ user.username }}</span>
-      <form method="post" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <button type="submit" class="text-sm text-red-500 hover:underline">Esci</button>
-      </form>
-    </div>
-  </div>
+  {# ── Status: one line, three states ─────────────────────────────────────── #}
+  <p class="text-center text-lg font-bold tracking-wide mb-1"
+     :class="busy ? 'text-gray-400' : (focused ? 'text-green-600' : 'text-amber-500')"
+     x-text="busy ? 'SALVATAGGIO…' : (focused ? 'PRONTO PER LA SCANSIONE' : 'TOCCA LO SCHERMO')">
+  </p>
 
-  {# Visible, not hidden: the operator sees the code arrive, and a scanner that #}
-  {# is delivering nothing at all is diagnosable at a glance.                   #}
-  <div class="form-card">
-    <label class="form-label" for="scan-input">Codice a barre</label>
-    {# No inputmode="none" here: it suppresses the soft keyboard, but Android    #}
-    {# then may not open an InputConnection, and a scanner that commits text    #}
-    {# through the IME has nowhere to put it — keydown fires with              #}
-    {# key="Unidentified" and no text ever lands.                              #}
-    <input id="scan-input" type="text" x-ref="input"
-           autofocus autocomplete="off" autocapitalize="off" autocorrect="off"
-           spellcheck="false"
-           placeholder="Pronto — premi il trigger"
-           class="form-input text-center text-lg tracking-wider"
-           @input="onInput()"
-           @beforeinput="onBeforeInput($event)"
-           @blur="refocusSoon()">
-    <div class="flex items-center justify-between mt-2 text-xs">
-      <span :class="focused ? 'text-green-600' : 'text-amber-600'"
-            x-text="focused ? '● campo attivo' : '○ campo non attivo — tocca qui'"></span>
-      <span class="text-gray-400" x-show="!busy" x-cloak>Invio manuale: premi Enter</span>
-      <span class="text-blue-500" x-show="busy" x-cloak>Salvataggio…</span>
-    </div>
-    <button type="button" @click="submitBuffer()"
-            class="btn btn-primary btn-full mt-3">
-      Registra codice
-    </button>
-  </div>
+  {# The field is restyled to look invisible, NOT hidden. The scanner commits   #}
+  {# text through the IME into the focused input, which is why inputmode="none" #}
+  {# broke it — display:none / opacity:0 risk the same regression.              #}
+  <input id="scan-input" type="text" x-ref="input"
+         autofocus autocomplete="off" autocapitalize="off" autocorrect="off"
+         spellcheck="false"
+         class="block w-full mb-4 bg-transparent border-0 outline-none text-center
+                text-base text-gray-400 tracking-widest"
+         style="caret-color: transparent;"
+         @input="onInput()"
+         @beforeinput="onBeforeInput($event)"
+         @blur="refocusSoon()">
 
-  <template x-if="last">
-    <div class="rounded-2xl p-6 mb-4 text-center"
-         :class="last.ok ? 'bg-green-50 border-2 border-green-500' : 'bg-red-50 border-2 border-red-500'">
-      <div class="text-6xl leading-none mb-3" x-text="last.ok ? '✓' : '✗'"
-           :class="last.ok ? 'text-green-600' : 'text-red-600'"></div>
-      <p class="text-2xl font-bold text-gray-900" x-text="last.code"></p>
-      <p class="text-sm mt-1" :class="last.ok ? 'text-green-700' : 'text-red-700'"
-         x-text="last.detail"></p>
-      <p class="text-xs text-gray-400 mt-2" x-text="last.time"></p>
+  {# ── Result ─────────────────────────────────────────────────────────────── #}
+  <template x-if="!last">
+    <div class="rounded-2xl bg-gray-100 text-gray-400 py-16 px-6 text-center mb-6">
+      <p class="text-lg font-medium">In attesa di una scansione</p>
     </div>
   </template>
 
-  {# Client-side only: the log resets on reload. Successful scans are recorded  #}
+  <template x-if="last">
+    <div class="rounded-2xl py-10 px-6 text-center mb-6 text-white"
+         :class="last.ok ? 'bg-green-600' : 'bg-red-600'">
+      <div class="text-8xl leading-none mb-4" x-text="last.ok ? '✓' : '✗'"></div>
+      <p class="text-3xl font-bold tracking-wide" x-text="last.code"></p>
+      <p class="text-lg mt-2 text-white/90" x-text="last.detail"></p>
+    </div>
+  </template>
+
+  {# ── Last 3 scans ───────────────────────────────────────────────────────── #}
+  {# Client-side only: the list resets on reload. Successful scans are recorded #}
   {# durably in the Modifica audit table regardless; errors are not persisted.  #}
-  <div class="form-card" x-show="log.length" x-cloak>
-    <p class="form-card-title">Registro scansioni</p>
-    <ul class="divide-y divide-gray-100 text-sm">
-      <template x-for="entry in log" :key="entry.id">
-        <li class="flex items-baseline gap-3 py-2">
-          <span class="text-base" :class="entry.ok ? 'text-green-600' : 'text-red-600'"
-                x-text="entry.ok ? '✓' : '✗'"></span>
-          <span class="text-gray-400 text-xs w-16 shrink-0" x-text="entry.time"></span>
-          <span class="font-medium text-gray-800" x-text="entry.code"></span>
-          <span class="text-gray-500 text-xs ml-auto text-right" x-text="entry.detail"></span>
-        </li>
-      </template>
-    </ul>
+  <div x-show="log.length" x-cloak>
+    <div class="grid grid-cols-[4.5rem_1fr_3rem] gap-2 px-3 pb-2
+                text-xs font-semibold tracking-wider text-gray-400 border-b border-gray-200">
+      <span>ORA</span>
+      <span>BAGNO</span>
+      <span class="text-right">ESITO</span>
+    </div>
+    <template x-for="entry in log" :key="entry.id">
+      <div class="grid grid-cols-[4.5rem_1fr_3rem] gap-2 px-3 py-3 items-center
+                  border-b border-gray-100">
+        <span class="text-sm text-gray-400" x-text="entry.time"></span>
+        <span class="text-base font-medium text-gray-800" x-text="entry.code"></span>
+        <span class="text-xl text-right font-bold"
+              :class="entry.ok ? 'text-green-600' : 'text-red-600'"
+              x-text="entry.ok ? '✓' : '✗'"></span>
+      </div>
+    </template>
   </div>
 
 </div>
@@ -219,7 +210,7 @@
         };
         this.last = entry;
         this.log.unshift(entry);
-        if (this.log.length > 20) this.log.pop();
+        if (this.log.length > 3) this.log.pop();
 
         if (navigator.vibrate) navigator.vibrate(entry.ok ? 80 : [90, 70, 90]);
       },
