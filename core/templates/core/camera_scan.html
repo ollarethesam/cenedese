@@ -3,13 +3,14 @@
 
 {% block content %}
 
-{#
-  Kiosk page for the handheld barcode scanner. The scanner is a keyboard wedge:
-  it types the code into the focused input and (usually) sends Enter. Enter is
-  the primary trigger; a short idle timer is the fallback for scanners that ship
-  without an Enter suffix, so a device misconfiguration can't leave the page
-  silently deaf.
-#}
+{# Kiosk page for the handheld barcode scanner.                                #}
+{# Scanners deliver a code in several different ways, so capture is layered:   #}
+{#   1. keydown on document — keyboard-wedge/HID, works even if focus is lost  #}
+{#   2. input event on the field — IME-style commitText injection              #}
+{#   3. paste event — clipboard-output scanners                                #}
+{# Enter submits; a short idle timer is the fallback when no Enter suffix is   #}
+{# configured. The diagnostics panel shows what the device actually emitted.   #}
+
 <div x-data="cameraScan()" x-init="init()" @click="focusInput()" class="max-w-xl mx-auto">
 
   {% csrf_token %}
@@ -26,28 +27,29 @@
     </div>
   </div>
 
-  <!-- ── Scanner input ─────────────────────────────────────────────────── -->
-  {# Visible rather than hidden: the operator can see the code arriving, and a
-     stuck/unfocused scanner is diagnosable at a glance. #}
+  {# Visible, not hidden: the operator sees the code arrive, and a scanner that #}
+  {# is delivering nothing at all is diagnosable at a glance.                   #}
   <div class="form-card">
     <label class="form-label" for="scan-input">Codice a barre</label>
-    <input id="scan-input" type="text" x-ref="input" x-model="buffer"
+    <input id="scan-input" type="text" x-ref="input"
            autofocus autocomplete="off" autocapitalize="off" autocorrect="off"
            spellcheck="false" inputmode="none"
            placeholder="Pronto — premi il trigger"
            class="form-input text-center text-lg tracking-wider"
-           @keydown.enter.prevent="submitBuffer()"
-           @input="scheduleIdleSubmit()"
+           @input="onInput()"
            @blur="refocusSoon()">
-    <p class="text-xs text-gray-400 mt-2 text-center" x-show="!busy" x-cloak>
-      Ogni scansione registra subito una lavorazione in camera.
-    </p>
-    <p class="text-xs text-blue-500 mt-2 text-center" x-show="busy" x-cloak>
-      Salvataggio…
-    </p>
+    <div class="flex items-center justify-between mt-2 text-xs">
+      <span :class="focused ? 'text-green-600' : 'text-amber-600'"
+            x-text="focused ? '● campo attivo' : '○ campo non attivo — tocca qui'"></span>
+      <span class="text-gray-400" x-show="!busy" x-cloak>Invio manuale: premi Enter</span>
+      <span class="text-blue-500" x-show="busy" x-cloak>Salvataggio…</span>
+    </div>
+    <button type="button" @click="submitBuffer()"
+            class="btn btn-primary btn-full mt-3">
+      Registra codice
+    </button>
   </div>
 
-  <!-- ── Last result ───────────────────────────────────────────────────── -->
   <template x-if="last">
     <div class="rounded-2xl p-6 mb-4 text-center"
          :class="last.ok ? 'bg-green-50 border-2 border-green-500' : 'bg-red-50 border-2 border-red-500'">
@@ -60,9 +62,8 @@
     </div>
   </template>
 
-  <!-- ── Scan log ──────────────────────────────────────────────────────── -->
-  {# Client-side only: it resets on reload. Successful scans are recorded
-     durably in the Modifica audit table regardless; errors are not. #}
+  {# Client-side only: the log resets on reload. Successful scans are recorded  #}
+  {# durably in the Modifica audit table regardless; errors are not persisted.  #}
   <div class="form-card" x-show="log.length" x-cloak>
     <p class="form-card-title">Registro scansioni</p>
     <ul class="divide-y divide-gray-100 text-sm">
@@ -78,24 +79,61 @@
     </ul>
   </div>
 
+  {# Diagnostics: raw events as the device emits them. If a trigger pull adds   #}
+  {# no rows here, the scanner is not sending keystrokes to the browser at all  #}
+  {# and needs reconfiguring (see the wedge/keystroke output setting).          #}
+  <div class="form-card">
+    <div class="flex items-center justify-between">
+      <p class="form-card-title mb-0 pb-0 border-none">Diagnostica</p>
+      <button type="button" @click="showDebug = !showDebug"
+              class="text-xs text-blue-600 hover:underline"
+              x-text="showDebug ? 'nascondi' : 'mostra'"></button>
+    </div>
+    <div x-show="showDebug" x-cloak class="mt-3">
+      <p class="text-xs text-gray-500 mb-2">
+        Eventi ricevuti dal browser: <span class="font-semibold" x-text="events.length"></span>.
+        Premi il trigger e guarda se compaiono righe.
+      </p>
+      <ul class="text-xs font-mono bg-gray-50 rounded-lg p-2 max-h-48 overflow-y-auto space-y-0.5">
+        <template x-for="e in events" :key="e.id">
+          <li class="text-gray-600" x-text="e.text"></li>
+        </template>
+        <li x-show="!events.length" class="text-gray-400">nessun evento</li>
+      </ul>
+      <button type="button" @click="events = []"
+              class="text-xs text-gray-500 hover:underline mt-2">svuota</button>
+    </div>
+  </div>
+
 </div>
 
 <script>
   document.addEventListener("alpine:init", () => {
     Alpine.data("cameraScan", () => ({
-      buffer: "",
+      shadow: "",        // chars captured while the field did NOT have focus
       busy: false,
+      focused: false,
       last: null,
       log: [],
+      events: [],
+      showDebug: true,
       idleTimer: null,
       seq: 0,
+      evSeq: 0,
 
       init() {
-        // The soft keyboard, a screen wake or a stray tap can all steal focus;
-        // a scan that lands nowhere is silently lost, so keep reclaiming it.
+        // Capture at the document, not the field: a wedge scanner emits key
+        // events wherever focus happens to be, and on Android focus is easily
+        // lost to the page body. Anything typed while the field is unfocused
+        // accumulates in `shadow` instead of being dropped on the floor.
+        document.addEventListener("keydown", (e) => this.onKey(e), true);
+        document.addEventListener("paste", (e) => this.onPaste(e), true);
         document.addEventListener("visibilitychange", () => {
           if (!document.hidden) this.focusInput();
         });
+        const el = this.$refs.input;
+        el.addEventListener("focus", () => { this.focused = true; });
+        el.addEventListener("blur",  () => { this.focused = false; });
         this.focusInput();
       },
 
@@ -107,39 +145,93 @@
         setTimeout(() => this.focusInput(), 50);
       },
 
-      // Fallback for scanners with no Enter suffix: submit once the keystrokes
-      // stop. Enter, when it does arrive, cancels this and submits immediately.
+      logEvent(text) {
+        this.events.unshift({ id: ++this.evSeq, text: `${this.stamp()} ${text}` });
+        if (this.events.length > 40) this.events.pop();
+      },
+
+      stamp() {
+        const d = new Date();
+        return d.toLocaleTimeString("it-IT") + "." + String(d.getMilliseconds()).padStart(3, "0");
+      },
+
+      onKey(e) {
+        const tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : "?";
+        this.logEvent(`keydown key=${JSON.stringify(e.key)} code=${e.code || "-"} kc=${e.keyCode} → ${tag}`);
+
+        if (e.key === "Enter" || e.key === "Tab") {
+          e.preventDefault();
+          this.submitBuffer();
+          return;
+        }
+        if (e.key.length !== 1 || e.ctrlKey || e.metaKey || e.altKey) return;
+
+        // Only shadow-buffer when the field itself isn't receiving the text;
+        // otherwise the character would be counted twice.
+        if (e.target !== this.$refs.input) this.shadow += e.key;
+        this.scheduleIdleSubmit();
+      },
+
+      onInput() {
+        this.logEvent(`input value=${JSON.stringify(this.$refs.input.value)}`);
+        this.scheduleIdleSubmit();
+      },
+
+      onPaste(e) {
+        const text = (e.clipboardData || window.clipboardData).getData("text") || "";
+        this.logEvent(`paste ${JSON.stringify(text)}`);
+        if (!text.trim()) return;
+        e.preventDefault();
+        this.send(text.trim());
+      },
+
+      // Fallback for scanners with no Enter suffix: submit once input stops.
       scheduleIdleSubmit() {
         clearTimeout(this.idleTimer);
-        this.idleTimer = setTimeout(() => this.submitBuffer(), 150);
+        this.idleTimer = setTimeout(() => this.submitBuffer(), 200);
+      },
+
+      // The field's own value wins; `shadow` covers the case where the
+      // keystrokes never reached it because focus was elsewhere.
+      readCode() {
+        const field = (this.$refs.input.value || "").trim();
+        return field || this.shadow.trim();
+      },
+
+      clearBuffers() {
+        this.$refs.input.value = "";
+        this.shadow = "";
       },
 
       submitBuffer() {
         clearTimeout(this.idleTimer);
-        const code = this.buffer.trim();
-        this.buffer = "";
+        const code = this.readCode();
+        this.clearBuffers();
         if (!code || this.busy) return;
         this.send(code);
       },
 
       async send(code) {
         this.busy = true;
+        this.logEvent(`POST ${JSON.stringify(code)}`);
         try {
-          const body = new URLSearchParams({ barcode: code });
           const res = await fetch("{% url 'camera_scan_save' %}", {
             method: "POST",
             headers: {
               "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
               "Content-Type": "application/x-www-form-urlencoded",
             },
-            body,
+            body: new URLSearchParams({ barcode: code }),
           });
           const data = await res.json();
+          this.logEvent(`← ${res.status} ${JSON.stringify(data)}`);
           this.record(code, data);
         } catch (err) {
+          this.logEvent(`← errore rete: ${err}`);
           this.record(code, { ok: false, error: "Errore di rete — riprova." });
         } finally {
           this.busy = false;
+          this.clearBuffers();
           this.focusInput();
         }
       },
@@ -157,8 +249,6 @@
         this.log.unshift(entry);
         if (this.log.length > 20) this.log.pop();
 
-        // Confirmation at arm's length: one short pulse on success, a double
-        // pulse on failure.
         if (navigator.vibrate) navigator.vibrate(entry.ok ? 80 : [90, 70, 90]);
       },
     }));
